@@ -171,14 +171,32 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 /* ---- Backend sync: Google Sheets + Apps Script ----
    Configure the Web App URL + token in the app's Sync dialog (top bar).
    With no URL set, the app runs browser-only (localStorage). */
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbyaYcfA1GYRXavQKhnGZLyj6IpORkqX2sRWNgsNXhRkyh8-7DFskFHsGzX4deSYMlRq/exec';
+const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0;
-function apiUrl(){ return (localStorage.getItem('wt360_api_url')||'').trim(); }
-function apiToken(){ return (localStorage.getItem('wt360_api_token')||'').trim(); }
+function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
+function apiToken(){ const v=localStorage.getItem('wt360_api_token'); return (v===null?DEFAULT_API_TOKEN:v).trim(); }
 function save(){
   try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
   const u=apiUrl(); if(!u) return;
   fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB})})
     .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); }).catch(()=>{ API_OK=false; });
+}
+/* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
+   Normalise them back to the types the app expects. */
+function normalizeDB(){
+  ['users','roles','dict','tasks','notify'].forEach(k=>{ if(!Array.isArray(DB[k])) DB[k]=[]; });
+  DB.users.forEach(u=>{ u.enroll=String(u.enroll==null?'':u.enroll); u.name=String(u.name||''); u.role=String(u.role||''); });
+  DB.roles.forEach(r=>{ r.name=String(r.name||''); });
+  DB.dict.forEach(d=>{ d.estMin=+d.estMin||0; d.title=String(d.title||''); });
+  DB.tasks.forEach(t=>{
+    t.dueDate = t.dueDate ? String(t.dueDate).slice(0,10) : '';
+    t.estMin=+t.estMin||0; t.actualMin=+t.actualMin||0;
+    if(!Array.isArray(t.attachments)) t.attachments=[];
+    if(!Array.isArray(t.comments)) t.comments=[];
+    if(t.timerStart===undefined) t.timerStart=null;
+  });
+  DB.notify.forEach(n=>{ n.read=!!n.read; });
 }
 async function apiLoad(){
   const u=apiUrl(); if(!u) return false;
@@ -189,6 +207,7 @@ async function apiLoad(){
       DB=j.db;
       if(!DB.seq) DB.seq=blankDB().seq;
       if(!DB.settings) DB.settings={dailyMinutes:480};
+      normalizeDB();
       try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
       API_OK=true; API_AT=Date.now(); return true;
     }
@@ -198,7 +217,7 @@ async function apiLoad(){
 }
 function syncDot(){ return API_OK?'●':(apiUrl()?'◐':'○'); }
 function openSync(){
-  const u=apiUrl(), t=localStorage.getItem('wt360_api_token')||'';
+  const u=apiUrl(), t=apiToken();
   modal(`<h2>Backend sync — Google Sheets</h2>
     <p class="desc">Paste the Apps Script Web App URL (ends with <b>/exec</b>) and the same token you set in Code.gs. Leave blank to use this browser only.</p>
     <div class="field"><label>Web App URL</label><input id="syncUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${esc(u)}"></div>
@@ -228,7 +247,7 @@ function saveSync(){
   apiLoad().then(ok=>{ toast(ok?'Connected to the sheet.':'Saved. Could not reach the backend yet.'); render(); });
 }
 function clearSync(){
-  localStorage.removeItem('wt360_api_url'); localStorage.removeItem('wt360_api_token');
+  localStorage.setItem('wt360_api_url',''); localStorage.setItem('wt360_api_token','');
   API_OK=false; closeModal(); toast('Disconnected. Using this browser only.'); render();
 }
 
