@@ -175,7 +175,7 @@ const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbyaYcfA1GYRXavQKh
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
-function apiToken(){ const v=localStorage.getItem('wt360_api_token'); return (v===null?DEFAULT_API_TOKEN:v).trim(); }
+function apiToken(){ return DEFAULT_API_TOKEN; }
 function save(){
   try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
   const u=apiUrl(); if(!u) return;
@@ -1442,6 +1442,7 @@ function modal(html){ const bg=document.createElement('div'); bg.className='moda
   bg.innerHTML=`<div class="modal">${html}</div>`; bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
 function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remove(); }
 
+try{ localStorage.removeItem('wt360_api_token'); }catch(e){}
 load();
 render();
 if(apiUrl()) apiLoad().then(ok=>{ if(ok) render(); });
