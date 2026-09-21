@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACCL · WorkTrac360</title>
+<style>
+  :root{
+    --navy:#1F4E78; --navy2:#2E6DA4; --blue:#2E86C1; --teal:#17A589; --orange:#E67E22;
+    --red:#C0392B; --purple:#8E44AD; --grey:#7F8C8D; --line:#e1e8ef; --bg:#eef1f5;
+    --card:#ffffff; --ink:#1f2a33; --muted:#6b7783;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  button,input,select,textarea{font-family:inherit;font-size:14px}
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 14px;
+    background:linear-gradient(135deg,#16385a,#2E86C1)}
+  .auth-card{background:#fff;border-radius:14px;padding:32px;width:100%;max-width:470px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+  .auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  .auth-logo{width:42px;height:42px;border-radius:11px;background:var(--navy);color:#fff;display:flex;
+    align-items:center;justify-content:center;font-weight:800;font-size:15px;letter-spacing:.5px}
+  .auth-brand h1{margin:0;font-size:18px;color:var(--navy)}
+  .auth-brand span{font-size:12px;color:var(--muted)}
+  .auth-card p.lead{margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.5}
+  .link{color:var(--navy);font-weight:700;cursor:pointer;text-decoration:underline}
+  .topbar{background:var(--navy);color:#fff;padding:11px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:10px}
+  .topbar .brand .mk{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.16);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+  .topbar .brand small{display:block;font-weight:400;color:#bcd3e8;font-size:11px}
+  .topbar .spacer{flex:1}
+  .who{display:flex;align-items:center;gap:10px}
+  .avatar{width:34px;height:34px;border-radius:50%;background:#2E86C1;color:#fff;display:flex;align-items:center;
+    justify-content:center;font-weight:700;font-size:13px}
+  .who .nm{font-size:13px;font-weight:600;line-height:1.25}
+  .who .nm small{display:block;font-weight:400;color:#bcd3e8;font-size:11px}
+  .nav{background:#fff;border-bottom:1px solid var(--line);display:flex;gap:2px;padding:0 14px;overflow-x:auto}
+  .nav button{background:none;border:none;padding:13px 14px;cursor:pointer;color:var(--muted);font-weight:600;
+    border-bottom:3px solid transparent;white-space:nowrap;position:relative}
+  .nav button.active{color:var(--navy);border-bottom-color:var(--navy)}
+  .nav .cnt{background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:5px;font-weight:700}
+  .wrap{padding:20px;max-width:1280px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:18px;margin-bottom:16px}
+  .card h2{margin:0 0 4px;font-size:16px;color:var(--navy)}
+  .card .desc{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+  .card h3{margin:16px 0 8px;font-size:14px;color:var(--navy)}
+  .grid{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
+  @media(max-width:520px){.g4{grid-template-columns:1fr}}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:11px;padding:16px;text-align:center}
+  .kpi .v{font-size:25px;font-weight:700;color:var(--navy)}
+  .kpi .l{font-size:11px;color:var(--muted);letter-spacing:.5px;margin-top:4px;text-transform:uppercase}
+  .kpi2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .kpi2 .t{font-size:12px;color:var(--muted);font-weight:600}
+  .kpi2 .n{font-size:28px;font-weight:700;color:var(--navy);margin:6px 0 4px;line-height:1.1}
+  .kpi2 .s{font-size:11.5px;color:var(--muted)}
+  .sbar{display:flex;height:18px;border-radius:4px;overflow:hidden;background:#eef1f5}
+  .btn{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:600}
+  .btn:hover{background:var(--navy2)}
+  .btn.sm{padding:6px 11px;font-size:12.5px}
+  .btn.ghost{background:#fff;color:var(--navy);border:1px solid #c7d9ea}
+  .btn.ghost:hover{background:#f0f6fc}
+  .btn.green{background:var(--teal)} .btn.green:hover{background:#128f76}
+  .btn.red{background:var(--red)} .btn.red:hover{background:#a5311f}
+  .btn.grey{background:var(--grey)} .btn.grey:hover{background:#6b7879}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+  .field label{font-size:12px;font-weight:600;color:var(--muted)}
+  .field input,.field select,.field textarea{padding:9px 10px;border:1px solid #cfd8e2;border-radius:8px;background:#fff;width:100%}
+  .field textarea{min-height:70px;resize:vertical}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--navy);color:#fff;text-align:left;padding:9px 8px;font-weight:600}
+  td{border-bottom:1px solid var(--line);padding:9px 8px;vertical-align:top}
+  tr:nth-child(even) td{background:#fafcfe}
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+  .b-grey{background:#e6eaee;color:#546e7a}
+  .b-blue{background:#e3f0fa;color:#1c6ea4}
+  .b-orange{background:#fdf0e2;color:#b06012}
+  .b-red{background:#fdeaea;color:#a5311f}
+  .b-green{background:#e0f7ea;color:#1E8449}
+  .b-teal{background:#dcf5e6;color:#145A32}
+  .b-purple{background:#f2e9f9;color:#6d33a3}
+  .muted{color:var(--muted)} .small{font-size:12px}
+  .bar{height:20px;border-radius:5px;background:#e8edf3;overflow:hidden}
+  .bar>i{display:block;height:100%}
+  .modal-bg{position:fixed;inset:0;background:rgba(15,30,45,.55);display:flex;align-items:flex-start;justify-content:center;
+    padding:24px 12px;overflow:auto;z-index:50}
+  .modal{background:#fff;border-radius:12px;width:100%;max-width:720px;padding:20px}
+  .modal h2{margin:0 0 12px;color:var(--navy);font-size:17px}
+  .pill{display:inline-block;background:#eef3f8;border-radius:6px;padding:2px 8px;font-size:11.5px;margin:2px 4px 2px 0;color:#40515f}
+  .toast{position:fixed;right:18px;bottom:18px;background:#12304a;color:#fff;padding:12px 16px;border-radius:9px;z-index:99;
+    box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:340px}
+  .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
+  .taskrow{display:grid;grid-template-columns:1fr 90px 120px 130px 110px 34px;gap:8px;margin-bottom:8px;align-items:center}
+  @media(max-width:900px){.taskrow{grid-template-columns:1fr 1fr}}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:-4px}
+  .note{background:#fff8e6;border:1px solid #f3e0b3;color:#7a5a12;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
+  .ok{background:#e6f7f1;border:1px solid #b7e6d8;color:#0f7a63;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
+  .nrow{border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:9px;background:#fff}
+  .nrow.unread{background:#f2f8ff;border-color:#cfe3f7}
+  .nrow .t{font-weight:700;color:var(--navy)}
+  .nrow .b{font-size:12.5px;color:#40515f;white-space:pre-wrap;margin-top:3px}
+  .nrow .m{font-size:11px;color:var(--muted);margin-top:5px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+
+<script>
+/* =========================================================================
+   ACCL — WORKTRAC360
+   Account types: Supervisor | Team Member.  Identity = Enroll ID only.
+   Data stored in this browser (localStorage). Notifications are in-app.
+   ========================================================================= */
+
+const SECTIONS = ["Production","Packer","Quality","Inventory","HR & Admin","Mechanical","Electrical",
+  "Power Plant","Distribution","Sustainability","OPEX","Civil","Finance"];
+
+const STATUSES = ["Not Started","In Progress","Need Support","Blocked","Done","Verified","Reopened"];
+const MEMBER_STATUSES = ["Not Started","In Progress","Need Support","Blocked","Done"];
+const PRIORITIES = ["High","Medium","Low"];
+const SHIFTS = ["General","Durbar","Durjoy","Duronto"];
+const FREQ = ["One-time","Daily","Weekly","Monthly"];
+
+const STATUS_COLOR = {"Not Started":"b-grey","In Progress":"b-blue","Need Support":"b-orange",
+  "Blocked":"b-red","Done":"b-green","Verified":"b-teal","Reopened":"b-purple"};
+const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Support":"#E67E22",
+  "Blocked":"#C0392B","Done":"#2ECC71","Verified":"#1E8449","Reopened":"#8E44AD"};
+const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
+
+const LS = 'accl_task_system_v6';
+
+/* Super Admin self-registration is protected by this setup code.
+   CHANGE IT to your own value (share only with OPEX leads). */
+const SUPER_SETUP_CODE = 'ACCL-OPEX-2026';
+
+/* suggested designations (typing is free — these are only hints) */
+const ROLE_HINTS = {
+  "Production":["Shift Incharge","Line Operator","Packer Operator","Kiln Operator","Helper"],
+  "Packer":["Bagging Incharge","Packer Operator","Helper"],
+  "Quality":["QC Incharge","QC Inspector","Chemist","Lab Assistant"],
+  "Inventory":["Store Officer","Store Keeper"],
+  "HR & Admin":["HR Officer","Admin Officer","Security Guard"],
+  "Mechanical":["Maintenance Incharge","Fitter","Welder","Technician"],
+  "Electrical":["Electrical Incharge","Electrician","Instrument Technician"],
+  "Power Plant":["Power Plant Operator","Boiler Operator"],
+  "Distribution":["Dispatch Officer","Loader"],
+  "Sustainability":["Sustainability Officer"],
+  "OPEX":["OPEX Officer","Data Analyst"],
+  "Civil":["Civil Technician"],
+  "Finance":["Accountant","Finance Officer"]
+};
+const SUPERVISOR_HINT = {
+  "Production":"Shift Incharge","Packer":"Bagging Incharge","Quality":"QC Incharge",
+  "Inventory":"Store Incharge","HR & Admin":"HR Incharge","Mechanical":"Maintenance Incharge",
+  "Electrical":"Electrical Incharge","Power Plant":"Power Plant Incharge","Distribution":"Dispatch Incharge",
+  "Sustainability":"Sustainability Incharge","OPEX":"OPEX Incharge","Civil":"Civil Incharge","Finance":"Finance Incharge"
+};
+
+/* ------------------------------- state ---------------------------------- */
+function blankDB(){
+  return {users:[], roles:[], dict:[], tasks:[], notify:[], settings:{dailyMinutes:480}, seq:{task:1, role:1, dict:1}};
+}
+let DB;
+function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw):blankDB(); }catch(e){ DB=blankDB(); } if(!DB.seq) DB.seq=blankDB().seq; if(!DB.settings) DB.settings={dailyMinutes:480}; }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){} }
+
+/* ------------------------------ helpers --------------------------------- */
+function dateStr(o){ const d=new Date(); d.setDate(d.getDate()+o); return d.toISOString().slice(0,10); }
+function uid(p){ return p + Date.now().toString(36) + Math.floor(Math.random()*1000); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function user(id){ return DB.users.find(u=>u.id===id) || {name:'—',section:'',role:'',enroll:''}; }
+function fmt(ts){ if(!ts) return '—'; return new Date(ts).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
+function toDate(s){ return s? new Date(s+'T00:00:00') : null; }
+function isOverdue(t){ return t.dueDate && ['Not Started','In Progress','Need Support','Blocked'].includes(t.status) && toDate(t.dueDate) < new Date(new Date().toDateString()); }
+function badge(x,c){ return `<span class="badge ${c}">${esc(x)}</span>`; }
+function statusBadge(s){ return badge(s, STATUS_COLOR[s]||'b-grey'); }
+function prioBadge(p){ return badge(p, PRIO_COLOR[p]||'b-grey'); }
+function typeBadge(t){
+  if(t==='superadmin') return badge('Super Admin','b-orange');
+  return badge(t==='supervisor'?'Supervisor':'Member', t==='supervisor'?'b-purple':'b-grey');
+}
+function initials(n){ return String(n||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function toast(m){ const el=document.getElementById('toast'); el.innerHTML=`<div class="toast">${esc(m)}</div>`; setTimeout(()=>el.innerHTML='',3200); }
+function notify(toId, title, body){ DB.notify.unshift({id:uid('n'), at:Date.now(), to:toId, title, body, read:false}); if(DB.notify.length>600) DB.notify.pop(); }
+function notifyDept(sec, title, body, exceptId){ DB.users.filter(u=>u.type==='supervisor'&&u.section===sec&&u.status==='approved'&&u.id!==exceptId).forEach(s=>notify(s.id,title,body)); }
+function myNotifs(){ return current? DB.notify.filter(n=>n.to===current.id) : []; }
+function unread(){ return myNotifs().filter(n=>!n.read).length; }
+
+/* access ----------------------------------------------------------------- */
+function isSuper(){ return !!current && current.type==='superadmin'; }
+function visibleTasks(u){
+  if(u.type==='superadmin') return DB.tasks;
+  if(u.type==='supervisor') return DB.tasks.filter(t=>t.section===u.section);
+  return DB.tasks.filter(t=>t.assigneeId===u.id);
+}
+function deptSupervisors(sec){ return DB.users.filter(u=>u.type==='supervisor' && u.section===sec && u.status==='approved'); }
+function rolesOf(sec){ return DB.roles.filter(r=>r.section===sec).sort((a,b)=>a.name.localeCompare(b.name)); }
+function ensureRole(sec, name){
+  name = String(name||'').trim(); if(!name) return;
+  if(!DB.roles.some(r=>r.section===sec && r.name.toLowerCase()===name.toLowerCase()))
+    DB.roles.push({id:uid('r'), section:sec, name});
+}
+
+let current=null, view='dashboard', taskFilter='All', authMode='signin', authMsg=null;
+let dateBasis='created', dateFrom='', dateTo='';
+let dashPeriod='month';   /* today | week | month */
+function periodRange(){
+  const to=dateStr(0);
+  if(dashPeriod==='today') return {from:to,to:to};
+  if(dashPeriod==='week') return {from:dateStr(-6),to:to};
+  return {from:firstOfMonth(),to:to};
+}
+
+/* ------------------------------- render --------------------------------- */
+function render(){
+  const app=document.getElementById('app');
+  if(!current){
+    if(authMode==='register') app.innerHTML = registerView();
+    else if(authMode==='superadmin') app.innerHTML = superAdminView();
+    else app.innerHTML = loginView();
+    return;
+  }
+  app.innerHTML = shell();
+}
+
+/* --------------------------------- auth --------------------------------- */
+function loginView(){
+  const none = DB.users.length===0;
+  return `<div class="auth-wrap"><div class="auth-card">
+    <div class="auth-brand"><div class="auth-logo">ACCL</div>
+      <div><h1>WorkTrac360</h1><span>Akij Cement Company Ltd.</span></div></div>
+    <p class="lead">Sign in with your Enroll ID.</p>
+    ${authMsg?`<div class="ok">${esc(authMsg)}</div>`:''}
+    ${none?`<div class="note"><b>Getting started:</b> no accounts yet. Register the first <b>Supervisor</b> for a department — they can then add their team.</div>`:''}
+    <div class="field"><label>Enroll ID</label><input id="loginId" placeholder="e.g. 560501" onkeydown="if(event.key==='Enter')loginByInput()"></div>
+    <button class="btn" style="width:100%" onclick="loginByInput()">Sign in</button>
+    <p style="margin:14px 0 0;font-size:13px">New user? <span class="link" onclick="showRegister()">Register here</span></p>
+  </div></div>`;
+}
+function registerView(){
+  const secOpts=SECTIONS.map(s=>`<option>${esc(s)}</option>`).join('');
+  return `<div class="auth-wrap"><div class="auth-card">
+    <div class="auth-brand"><div class="auth-logo">ACCL</div>
+      <div><h1>Register</h1><span>Akij Cement Company Ltd.</span></div></div>
+    <p class="lead">Team members need approval from their department supervisor. Supervisors can sign in immediately.</p>
+    ${authMsg?`<div class="ok">${esc(authMsg)}</div>`:''}
+    <div class="field"><label>Registering as</label>
+      <select id="srType" onchange="hintRole()">
+        <option value="member">Team Member</option>
+        <option value="supervisor">Supervisor</option>
+      </select></div>
+    <div class="field"><label>Full name</label><input id="srName" placeholder="e.g. Abdul Karim"></div>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:150px"><label>Enroll ID</label><input id="srEnroll" placeholder="e.g. 560901"></div>
+      <div class="field" style="flex:1;min-width:170px"><label>Department</label>
+        <select id="srSection" onchange="hintRole()">${secOpts}</select></div>
+    </div>
+    <div class="field"><label>Role / Designation <span class="muted" style="font-weight:400">— type your own</span></label>
+      <input id="srRole" placeholder="e.g. Line Operator"></div>
+    <button class="btn" style="width:100%" onclick="selfRegister()">Submit registration</button>
+    <p style="margin:12px 0 0;font-size:13px"><span class="link" onclick="showSignin()">← Back to sign in</span></p>
+    <p style="margin:8px 0 0;font-size:12.5px"><span class="link" onclick="showSuperAdmin()">Super Admin access</span></p>
+  </div></div>`;
+}
+function superAdminView(){
+  return `<div class="auth-wrap"><div class="auth-card">
+    <div class="auth-brand"><div class="auth-logo">ACCL</div>
+      <div><h1>Super Admin access</h1><span>Akij Cement Company Ltd.</span></div></div>
+    <p class="lead">Restricted area. Enter the setup code to register a Super Admin account.</p>
+    ${authMsg?`<div class="ok">${esc(authMsg)}</div>`:''}
+    <div class="field"><label>Setup code</label><input id="saCode" type="password" placeholder="Enter setup code"></div>
+    <div class="field"><label>Full name</label><input id="saName" placeholder="e.g. Md. Injamamul Haque"></div>
+    <div class="row">
+      <div class="field" style="flex:1;min-width:150px"><label>Enroll ID</label><input id="saEnroll" placeholder="e.g. 567822"></div>
+      <div class="field" style="flex:1;min-width:170px"><label>Department</label>
+        <select id="saSection">${SECTIONS.map(s=>`<option>${esc(s)}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>Designation</label><input id="saRole" placeholder="e.g. Manager – OPEX"></div>
+    <button class="btn" style="width:100%" onclick="registerSuperAdmin()">Create Super Admin</button>
+    <p style="margin:12px 0 0;font-size:13px"><span class="link" onclick="showRegister()">← Back to registration</span></p>
+  </div></div>`;
+}
+function showSuperAdmin(){ authMode='superadmin'; authMsg=null; render(); }
+function registerSuperAdmin(){
+  const code=(document.getElementById('saCode').value||'').trim();
+  const name=document.getElementById('saName').value.trim();
+  const enroll=document.getElementById('saEnroll').value.trim();
+  const section=document.getElementById('saSection').value;
+  const role=document.getElementById('saRole').value.trim()||'Super Admin';
+  if(code!==SUPER_SETUP_CODE){ toast('Invalid setup code.'); return; }
+  if(!name||!enroll){ toast('Please fill name and enroll ID.'); return; }
+  if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ toast('This enroll ID is already registered.'); return; }
+  const anySuper=DB.users.some(u=>u.type==='superadmin' && u.status==='approved');
+  DB.users.push({id:uid('u'), enroll, name, section, role, type:'superadmin', status: anySuper?'pending':'approved'});
+  if(anySuper){
+    DB.users.filter(u=>u.type==='superadmin'&&u.status==='approved').forEach(s=>notify(s.id,'Super Admin registration',`${name} (${enroll}) requested Super Admin access. Approve or reject in Team.`));
+    authMsg='Request submitted. An existing Super Admin must approve it before you can sign in.';
+  } else {
+    authMsg='Super Admin created. You can sign in now.';
+  }
+  save(); authMode='signin'; render();
+}
+function hintRole(){
+  const sec=document.getElementById('srSection').value;
+  const type=document.getElementById('srType').value;
+  const inp=document.getElementById('srRole');
+  if(inp && !inp.value.trim()){
+    inp.placeholder = type==='superadmin' ? 'Super Admin'
+      : (type==='supervisor' ? (SUPERVISOR_HINT[sec]||'Supervisor') : ((ROLE_HINTS[sec]||[])[0]||'Role'));
+  }
+}
+function showRegister(){ authMode='register'; authMsg=null; render(); }
+function showSignin(){ authMode='signin'; authMsg=null; render(); }
+
+function selfRegister(){
+  const type=document.getElementById('srType').value;
+  const name=document.getElementById('srName').value.trim();
+  const enroll=document.getElementById('srEnroll').value.trim();
+  const section=document.getElementById('srSection').value;
+  const role=document.getElementById('srRole').value.trim();
+  if(!name||!enroll||!role){ toast('Please fill name, enroll and role.'); return; }
+  if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ toast('This enroll ID is already registered.'); return; }
+  ensureRole(section, role);
+
+  /* public registration can only create Team Member or Supervisor */
+  if(type!=='supervisor') type='member';
+
+  if(type==='supervisor'){
+    DB.users.push({id:uid('u'), enroll, name, section, role, type, status:'approved'});
+    notifyDept(section, 'New supervisor', `${name} (${enroll}) joined ${section} as ${role}.`, null);
+    save(); authMsg='Supervisor account created. You can sign in now.'; authMode='signin'; render(); return;
+  }
+  DB.users.push({id:uid('u'), enroll, name, section, role, type, status:'pending'});
+  const sups=deptSupervisors(section);
+  sups.forEach(s=>notify(s.id, 'Registration pending', `${name} (${enroll}) registered as ${role} in ${section}. Approve or reject in Team.`));
+  save();
+  authMsg = sups.length ? 'Registration submitted. Your supervisor will approve it.'
+                        : 'Registration submitted. It will be approved once a supervisor is available for your department.';
+  authMode='signin'; render();
+}
+function loginByInput(){
+  const v=(document.getElementById('loginId').value||'').trim().toLowerCase();
+  const u=DB.users.find(x=>x.enroll.toLowerCase()===v);
+  if(!u){ toast('No account found for this enroll ID.'); return; }
+  if(u.status!=='approved'){ toast('Your registration is awaiting supervisor approval.'); return; }
+  login(u.id);
+}
+function login(id){ current=DB.users.find(u=>u.id===id); view='dashboard'; authMsg=null; render(); }
+function logout(){ current=null; authMode='signin'; authMsg=null; render(); }
+
+/* --------------------------------- shell -------------------------------- */
+function shell(){
+  const tabs=[['dashboard','Dashboard'],['tasks','Tasks']];
+  if(current.type!=='member'){ tabs.push(['assign','Assign Task']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
+  if(isSuper()) tabs.push(['departments','Departments']);
+  tabs.push(['notify','Notifications']);
+  const nav=tabs.map(([k,l])=>{
+    const c = (k==='notify' && unread()) ? `<span class="cnt">${unread()}</span>` : '';
+    return `<button class="${view===k?'active':''}" onclick="go('${k}')">${l}${c}</button>`;
+  }).join('');
+  let body='';
+  switch(view){
+    case 'dashboard': body=dashboardView(); break;
+    case 'tasks': body=tasksView(); break;
+    case 'assign': body=assignView(); break;
+    case 'team': body=teamView(); break;
+    case 'dictionary': body=dictView(); break;
+    case 'workload': body=workloadView(); break;
+    case 'reports': body=reportsView(); break;
+    case 'departments': body=departmentsView(); break;
+    case 'notify': body=notifyView(); break;
+  }
+  return `
+  <div class="topbar">
+    <div class="brand"><div class="mk">ACCL</div><div>WorkTrac360<small>Akij Cement Company Ltd.</small></div></div>
+    <div class="spacer"></div>
+    <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
+      <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
+    <button class="btn ghost sm" onclick="logout()">Log out</button>
+  </div>
+  <div class="nav">${nav}</div>
+  <div class="wrap">${body}</div>`;
+}
+function go(v){ view=v; if(v==='notify') myNotifs().forEach(n=>n.read=true); taskFilter='All'; save(); render(); }
+
+/* --------------------- super admin: full dashboard ---------------------- */
+function superDashboardView(){
+  const ts=DB.tasks;
+  const est=ts.reduce((a,t)=>a+(+t.estMin||0),0), act=ts.reduce((a,t)=>a+(+t.actualMin||0),0);
+  const overdue=ts.filter(isOverdue).length;
+  const done=ts.filter(t=>t.status==='Done'||t.status==='Verified').length;
+  const completion=ts.length?Math.round(done*100/ts.length):0;
+  const people=DB.users.filter(u=>u.status==='approved'&&u.type!=='superadmin').length;
+  const pendingUsers=DB.users.filter(u=>u.status==='pending').length;
+  const activeDepts=new Set(ts.map(t=>t.section)).size;
+
+  const deptStats=SECTIONS.map(s=>{
+    const sups=DB.users.filter(u=>u.type==='supervisor'&&u.section===s&&u.status==='approved').length;
+    const mems=DB.users.filter(u=>u.type==='member'&&u.section===s&&u.status==='approved').length;
+    const pnd=DB.users.filter(u=>u.status==='pending'&&u.section===s).length;
+    const t=ts.filter(x=>x.section===s);
+    const c={}; STATUSES.forEach(k=>c[k]=0); t.forEach(x=>c[x.status]++);
+    const dn=c.Done+c.Verified;
+    const e=t.reduce((a,x)=>a+(+x.estMin||0),0), ac=t.reduce((a,x)=>a+(+x.actualMin||0),0);
+    const ov=t.filter(isOverdue).length;
+    return {s,sups,mems,pnd,n:t.length,c,dn,e,ac,ov,comp:t.length?Math.round(dn*100/t.length):0};
+  });
+
+  const legend=STATUSES.map(k=>`<span class="pill" style="border-left:5px solid ${STATUS_HEX[k]}">${esc(k)}</span>`).join('');
+
+  const summaryRows=deptStats.map(d=>`<tr>
+    <td><b>${esc(d.s)}</b></td>
+    <td>${d.sups}</td><td>${d.mems}</td><td>${d.pnd?badge(d.pnd,'b-orange'):'—'}</td>
+    <td><b>${d.n}</b></td><td>${d.dn}</td>
+    <td><div class="bar" style="min-width:70px"><i style="width:${d.comp}%;background:${d.comp>=75?'#2ECC71':d.comp>=40?'#E67E22':'#C0392B'}"></i></div><span class="small">${d.comp}%</span></td>
+    <td>${d.ov?badge(d.ov,'b-red'):'—'}</td>
+    <td class="small">${d.e} / ${d.ac}</td>
+    <td><button class="btn sm ghost" onclick="window.__teamSec='${d.s}';go('team')">Team</button>
+        <button class="btn sm ghost" onclick="window.__assignSec='${d.s}';window.__assignRole='';assignRows=[];go('assign')">Assign</button>
+        <button class="btn sm ghost" onclick="window.__repSec='${d.s}';go('reports')">Report</button></td></tr>`).join('');
+
+  const stacked=deptStats.filter(d=>d.n>0).map(d=>{
+    const segs=STATUSES.filter(k=>d.c[k]>0).map(k=>`<div style="width:${(d.c[k]*100/d.n).toFixed(2)}%;background:${STATUS_HEX[k]}" title="${esc(k)}: ${d.c[k]}"></div>`).join('');
+    return `<tr><td style="white-space:nowrap;padding-right:12px"><b>${esc(d.s)}</b></td>
+      <td style="width:100%"><div style="display:flex;height:16px;border-radius:4px;overflow:hidden;background:#eef1f5">${segs}</div></td>
+      <td style="padding-left:12px;text-align:right"><b>${d.n}</b></td></tr>`;
+  }).join('')||'<tr><td colspan="3" class="empty">No tasks yet.</td></tr>';
+
+  const detailRows=deptStats.map(d=>`<tr><td><b>${esc(d.s)}</b></td>
+    ${STATUSES.map(k=>`<td>${d.c[k]||'—'}</td>`).join('')}<td><b>${d.n}</b></td>
+    <td class="small">${d.e} / ${d.ac}</td></tr>`).join('');
+
+  const overList=ts.filter(isOverdue).sort((a,b)=>(a.dueDate||'').localeCompare(b.dueDate||'')).slice(0,10).map(t=>`
+    <tr><td class="small">${esc(t.dueDate)}</td>
+      <td><b>${esc(t.code)}</b><div class="small muted">${esc(t.title)}</div></td>
+      <td class="small">${esc(t.section)}</td><td class="small">${esc(user(t.assigneeId).name)}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td><button class="btn sm ghost" onclick="openTask('${t.id}')">Open</button></td></tr>`).join('');
+
+  const recent=ts.slice().sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,8).map(t=>`
+    <tr><td><b>${esc(t.code)}</b><div class="small muted">${esc(t.title)}</div></td>
+      <td class="small">${esc(t.section)}</td><td>${esc(user(t.assigneeId).name)}</td>
+      <td>${statusBadge(t.status)}</td><td class="small">${fmt(t.updatedAt)}</td>
+      <td><button class="btn sm ghost" onclick="openTask('${t.id}')">Open</button></td></tr>`).join('');
+
+  /* ---------------- period-scoped performance metrics ---------------- */
+  const pr=periodRange();
+  const pDays=daysBetween(pr.from,pr.to);
+  const perDay=+DB.settings.dailyMinutes||480;
+  const capRange=perDay*pDays;
+  const periodLabel={today:'Today',week:'Last 7 days',month:'This month'}[dashPeriod]||'This month';
+  let pts=DB.tasks.filter(t=>t.dueDate && t.dueDate>=pr.from && t.dueDate<=pr.to);
+  if(!pts.length) pts=DB.tasks;
+
+  const totalP=pts.length;
+  const doneP=pts.filter(t=>t.status==='Done'||t.status==='Verified').length;
+  const verifiedP=pts.filter(t=>t.status==='Verified').length;
+  const completionPct=totalP?Math.round(doneP*100/totalP):0;
+  const estP=pts.reduce((a,t)=>a+(+t.estMin||0),0);
+  const actP=pts.reduce((a,t)=>a+(+t.actualMin||0),0);
+  const adherencePct=estP?Math.round(estP*100/Math.max(actP,1)):0;
+  const lateP=pts.filter(t=>(t.status==='Done'||t.status==='Verified') && t.dueDate && dstr(t.updatedAt)>t.dueDate).length;
+  const onTimePct=doneP?Math.round((doneP-lateP)*100/doneP):0;
+  const approvalPct=doneP?Math.round(verifiedP*100/doneP):0;
+  const memberCount=DB.users.filter(u=>u.status==='approved'&&u.type==='member').length;
+  const capAll=memberCount*capRange;
+  const loadPct=capAll?Math.round(estP*100/capAll):0;
+  const score=Math.round(completionPct*0.50+onTimePct*0.30+adherencePct*0.20);
+  const employees=DB.users.filter(u=>u.status==='approved'&&u.type!=='superadmin').length;
+  const overdueP=pts.filter(isOverdue).length;
+
+  /* ---------------- role aggregation ---------------- */
+  const roleAgg={};
+  pts.forEach(t=>{
+    const k=t.section+'\u0001'+t.role;
+    const a=roleAgg[k]||(roleAgg[k]={s:t.section,role:t.role,assigned:0,completed:0,onTime:0,mins:0});
+    a.assigned++; a.mins+=(+t.estMin||0);
+    if(t.status==='Done'||t.status==='Verified'){ a.completed++; if(t.dueDate && dstr(t.updatedAt)<=t.dueDate) a.onTime++; }
+  });
+  const roleRowsAgg=Object.keys(roleAgg).map(k=>{
+    const a=roleAgg[k];
+    a.members=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&u.section===a.s&&u.role===a.role).length;
+    a.cap=a.members*capRange;
+    a.load=a.cap?Math.round(a.mins*100/a.cap):0;
+    a.perf=a.assigned?Math.round(a.completed*100/a.assigned):0;
+    a.signal=a.load>100?'Redistribute load':(a.load<80?'Available capacity':'Healthy');
+    return a;
+  }).sort((a,b)=>b.load-a.load);
+
+  const roleLoadRows=roleRowsAgg.slice(0,6).map(a=>{
+    const col=a.load>100?'#C0392B':(a.load<80?'#E67E22':'#2E86C1');
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div><b>${esc(a.role)}</b><div class="small muted">${a.members} ${a.members===1?'person':'people'} | ${a.cap.toLocaleString()} min capacity</div></div>
+        <div style="font-weight:700;color:${col}">${a.load}%</div></div>
+      <div class="bar" style="margin-top:5px"><i style="width:${Math.min(a.load,100)}%;background:${col}"></i></div>
+    </div>`;
+  }).join('')||'<div class="empty">No tasks in this period.</div>';
+
+  const signalBadge=s=> s==='Healthy'?badge('Healthy','b-green'):(s==='Redistribute load'?badge('Redistribute load','b-red'):badge('Available capacity','b-orange'));
+  const rolePerfRows=roleRowsAgg.map(a=>`<tr>
+      <td><b>${esc(a.role)}</b><div class="small muted">${esc(a.s)}</div></td>
+      <td>${a.assigned}</td><td>${a.completed}</td><td>${a.onTime}</td>
+      <td>${a.load}%</td><td>${a.perf}%</td><td>${signalBadge(a.signal)}</td></tr>`).join('')
+      ||'<tr><td colspan=7 class="empty">No role activity in this period.</td></tr>';
+
+  const donut=(v,col)=>{ v=Math.max(0,Math.min(100,v));
+    return `<svg width="150" height="150" viewBox="0 0 42 42" style="display:block;margin:0 auto">
+      <circle cx="21" cy="21" r="15.9" fill="none" stroke="#e8edf3" stroke-width="6"></circle>
+      <circle cx="21" cy="21" r="15.9" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round"
+        stroke-dasharray="${v} ${100-v}" stroke-dashoffset="25"></circle>
+      <text x="21" y="21.5" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="700" fill="#1F4E78">${v}%</text>
+    </svg>`;
+  };
+
+  return `
+  <div class="card" style="padding:16px 20px">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <div>
+        <h2 style="margin:0 0 4px">Daily operations overview</h2>
+        <div class="small muted">${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})} &nbsp;|&nbsp; All departments &nbsp;|&nbsp; ${employees} employees</div>
+      </div>
+      <div class="row" style="align-items:center;gap:14px">
+        <div class="field" style="min-width:150px;margin:0"><label>Period</label>
+          <select onchange="dashPeriod=this.value;render()">
+            <option value="today" ${dashPeriod==='today'?'selected':''}>Today</option>
+            <option value="week" ${dashPeriod==='week'?'selected':''}>Last 7 days</option>
+            <option value="month" ${dashPeriod==='month'?'selected':''}>This month</option>
+          </select></div>
+        <div class="small muted">Last updated ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g3" style="margin-bottom:16px">
+    <div class="kpi2"><div class="t">Assigned workload</div>
+      <div class="n" style="color:${loadColor(loadPct)}">${loadPct}%</div>
+      <div class="s">Balanced target: 80–95%${loadPct>100?' · overloaded':(loadPct<80?' · underloaded':'')}</div></div>
+    <div class="kpi2"><div class="t">Task completion</div>
+      <div class="n" style="color:#2E86C1">${completionPct}%</div>
+      <div class="s">${doneP} of ${totalP} tasks done</div></div>
+    <div class="kpi2"><div class="t">On-time completion</div>
+      <div class="n" style="color:${onTimePct>=80?'#1E8449':'#E67E22'}">${onTimePct}%</div>
+      <div class="s">${lateP} task(s) completed late</div></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><h2>Role-wise workload</h2>
+      <p class="desc">Load = assigned minutes ÷ capacity (${perDay} min × ${pDays} day(s) × members).</p>
+      ${roleLoadRows}
+      <div class="small muted" style="margin-top:6px">
+        <span style="color:#E67E22">●</span> Below 80%: underloaded &nbsp;&nbsp;
+        <span style="color:#2E86C1">●</span> 80–100%: balanced &nbsp;&nbsp;
+        <span style="color:#C0392B">●</span> Above 100%: overloaded</div>
+    </div>
+    <div class="card"><h2>Overall performance score</h2>
+      <div class="grid g2" style="align-items:center">
+        <div>${donut(score, score>=80?'#1E8449':score>=60?'#E67E22':'#C0392B')}</div>
+        <div style="font-size:13px">
+          <div class="row" style="justify-content:space-between;padding:5px 0"><span>Completion</span><b>${completionPct}%</b></div>
+          <div class="row" style="justify-content:space-between;padding:5px 0"><span>On-time delivery</span><b>${onTimePct}%</b></div>
+          <div class="row" style="justify-content:space-between;padding:5px 0"><span>Time adherence</span><b>${adherencePct}%</b></div>
+        </div>
+      </div>
+      <p class="small muted" style="margin-top:10px">Weighted score: Completion 50% | On-time 30% | Time adherence 20%.</p>
+    </div>
+  </div>
+
+  <div class="card"><h2>Role performance and action signals</h2>
+    <table><tr><th>Role</th><th>Assigned</th><th>Completed</th><th>On time</th><th>Load</th><th>Performance</th><th>Signal</th></tr>
+    ${rolePerfRows}</table>
+    <p class="hint">Use planned minutes — not task count — for workload decisions because task durations differ.</p>
+  </div>
+
+  <div class="card" style="padding:12px 18px">
+    <div class="small muted">Departments active <b>${activeDepts}/${SECTIONS.length}</b> &nbsp;·&nbsp; People <b>${people}</b> &nbsp;·&nbsp;
+      Pending approvals <b style="color:${pendingUsers?'#C0392B':'#1E8449'}">${pendingUsers}</b> &nbsp;·&nbsp;
+      Period <b>${periodLabel}</b> &nbsp;·&nbsp; Overdue <b style="color:${overdueP?'#C0392B':'#1E8449'}">${overdueP}</b> &nbsp;·&nbsp;
+      Super Admin view — all departments</div>
+  </div>
+
+  <div class="card"><h2>All Departments — Key Data</h2>
+    <p class="desc">Summary of every department. Use the buttons to open that department directly.</p>
+    <table><tr><th>Department</th><th>Supervisors</th><th>Members</th><th>Pending</th><th>Tasks</th><th>Done</th>
+      <th>Completion</th><th>Overdue</th><th>Est / Actual min</th><th>Actions</th></tr>
+      ${summaryRows}</table>
+  </div>
+
+  <div class="card"><h2>Department-wise Status Mix</h2>
+    <p class="desc">Each bar shows how a department's tasks are distributed across statuses.</p>
+    <div style="margin-bottom:10px">${legend}</div>
+    <table>${stacked}</table>
+  </div>
+
+  <div class="card"><h2>Department × Status Detail</h2>
+    <table><tr><th>Department</th>${STATUSES.map(k=>`<th>${esc(k)}</th>`).join('')}<th>Total</th><th>Est / Actual</th></tr>
+      ${detailRows}</table>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><h2>Attention — Overdue Tasks</h2>
+      <table><tr><th>Due</th><th>Task</th><th>Department</th><th>Assignee</th><th>Status</th><th></th></tr>
+      ${overList||'<tr><td colspan=6 class="empty">No overdue tasks.</td></tr>'}</table></div>
+    <div class="card"><h2>Recent Activity (all departments)</h2>
+      <table><tr><th>Task</th><th>Department</th><th>Assignee</th><th>Status</th><th>Updated</th><th></th></tr>
+      ${recent||'<tr><td colspan=6 class="empty">No activity yet.</td></tr>'}</table></div>
+  </div>`;
+}
+
+/* ------------------------------ dashboard ------------------------------- */
+function dashboardView(){
+  if(isSuper()) return superDashboardView();
+  const ts=visibleTasks(current);
+  const byStatus={}; STATUSES.forEach(s=>byStatus[s]=0); ts.forEach(t=>byStatus[t.status]=(byStatus[t.status]||0)+1);
+  const est=ts.reduce((a,t)=>a+(+t.estMin||0),0), act=ts.reduce((a,t)=>a+(+t.actualMin||0),0);
+  const overdue=ts.filter(isOverdue).length;
+  const done=ts.filter(t=>t.status==='Done'||t.status==='Verified').length;
+  const completion=ts.length?Math.round(done*100/ts.length):0;
+  const bars=STATUSES.filter(s=>byStatus[s]>0).map(s=>{
+    const pct=ts.length?Math.round(byStatus[s]*100/ts.length):0;
+    const col=STATUS_HEX[s]||'#7F8C8D';
+    return `<div style="margin-bottom:9px">
+      <div class="small" style="display:flex;justify-content:space-between;align-items:center">
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${col};margin-right:7px;vertical-align:-1px"></span>${esc(s)}</span>
+        <span><b>${byStatus[s]}</b> · ${pct}%</span></div>
+      <div class="bar"><i style="width:${pct}%;background:${col}"></i></div></div>`;
+  }).join('')||'<div class="empty">No tasks yet.</div>';
+  const recent=ts.slice().sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,6).map(t=>`
+    <tr><td><b>${esc(t.code)}</b><div class="small muted">${esc(t.title)}</div></td>${isSuper()?`<td class="small">${esc(t.section)}</td>`:''}<td>${esc(user(t.assigneeId).name)}</td>
+      <td>${statusBadge(t.status)}</td><td class="small">${fmt(t.updatedAt)}</td>
+      <td><button class="btn sm ghost" onclick="openTask('${t.id}')">Open</button></td></tr>`).join('');
+  let deptBlock='';
+  if(isSuper()){
+    const bySec={}; ts.forEach(t=>bySec[t.section]=(bySec[t.section]||0)+1);
+    const rows=Object.keys(bySec).sort((a,b)=>bySec[b]-bySec[a]).map(s=>`<tr><td>${esc(s)}</td><td>${bySec[s]}</td></tr>`).join('');
+    deptBlock=`<div class="card"><h2>Tasks by Department</h2><p class="desc">All departments (Super Admin view).</p>
+      <table><tr><th>Department</th><th>Tasks</th></tr>${rows||'<tr><td colspan=2 class="empty">—</td></tr>'}</table></div>`;
+  }
+  return `
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="kpi"><div class="v">${ts.length}</div><div class="l">Total Tasks</div></div>
+    <div class="kpi"><div class="v" style="color:#17A589">${completion}%</div><div class="l">Completion</div></div>
+    <div class="kpi"><div class="v" style="color:#C0392B">${overdue}</div><div class="l">Overdue</div></div>
+    <div class="kpi"><div class="v">${est} / ${act}</div><div class="l">Est. / Actual min</div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h2>Task Status</h2><p class="desc">Distribution of tasks by current status.</p>${bars}</div>
+    <div class="card"><h2>Time Adherence</h2><p class="desc">Estimated vs actual time recorded.</p>
+      <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Estimated</span><span><b>${est} min</b></span></div>
+      <div class="bar" style="margin-bottom:12px"><i style="width:${Math.max(est,act)?Math.round(est*100/Math.max(est,act)):0}%;background:#2E86C1"></i></div>
+      <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Actual</span><span><b>${act} min</b></span></div>
+      <div class="bar"><i style="width:${Math.max(est,act)?Math.round(act*100/Math.max(est,act)):0}%;background:${act>est?'#C0392B':'#17A589'}"></i></div>
+      <p class="small muted" style="margin-top:12px">${est?`Adherence <b style="color:${act>est?'#C0392B':'#17A589'}">${Math.round(est*100/Math.max(act,1))}%</b> — ${act>est?'actual exceeded estimate':'within estimate'}.`:'No time recorded yet.'}</p>
+    </div>
+  </div>
+  ${deptBlock}
+  <div class="card"><h2>Recent Activity</h2>
+    <table><tr><th>Task</th>${isSuper()?'<th>Department</th>':''}<th>Assignee</th><th>Status</th><th>Updated</th><th></th></tr>${recent||`<tr><td colspan=${isSuper()?6:5} class="empty">No activity yet.</td></tr>`}</table></div>`;
+}
+
+/* -------------------------------- tasks --------------------------------- */
+function tasksView(){
+  const ts=visibleTasks(current).slice().sort((a,b)=>b.updatedAt-a.updatedAt);
+  const counts={}; ts.forEach(t=>counts[t.status]=(counts[t.status]||0)+1);
+  const chips=['All',...STATUSES].map(s=>{ const n=s==='All'?ts.length:(counts[s]||0);
+    return `<button class="btn sm ${taskFilter===s?'':'ghost'}" onclick="setFilter('${s}')">${s} (${n})</button>`; }).join(' ');
+  const list=ts.filter(t=>taskFilter==='All'||t.status===taskFilter);
+  const rows=list.map(t=>`<tr>
+      <td><b>${esc(t.code)}</b><div class="small muted">${esc(t.title)}</div></td>
+      <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
+      <td>${esc(user(t.assigneeId).name)}</td>
+      <td>${statusBadge(t.status)} ${prioBadge(t.priority)}</td>
+      <td class="small">${t.estMin}m est<br>${t.actualMin}m act</td>
+      <td class="small">${t.dueDate||'—'} ${isOverdue(t)?badge('Overdue','b-red'):''}</td>
+      <td style="white-space:nowrap"><button class="btn sm" onclick="openTask('${t.id}')">Open</button>
+        ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`).join('');
+  return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
+    <p class="desc">${current.type==='member'?'Tasks assigned to you. Open a task to update status.':(isSuper()?'All tasks across every department.':'All tasks in your department.')}</p>
+    <div style="margin-bottom:12px">${chips}</div>
+    <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th><th>Due</th><th></th></tr>
+    ${rows||'<tr><td colspan=7 class="empty">No tasks found.</td></tr>'}</table></div>`;
+}
+function setFilter(s){ taskFilter=s; render(); }
+
+/* ------------------------------ assign task ----------------------------- */
+let assignRows=[];
+function assignView(){
+  const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
+  const roles=rolesOf(sec);
+  const roleSel=window.__assignRole || (roles[0]&&roles[0].name) || '';
+  const members=DB.users.filter(u=>u.type==='member' && u.section===sec && u.role===roleSel && u.status==='approved');
+  const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||d.role===roleSel));
+  if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
+  const roleOptions=roles.map(r=>`<option ${r.name===roleSel?'selected':''}>${esc(r.name)}</option>`).join('');
+  const memberOptions=members.length?members.map(m=>`<option value="${m.id}">${esc(m.name)} (${esc(m.enroll)})</option>`).join('')
+    :'<option value="">— no member in this role —</option>';
+  const freqSel=window.__dictFreq||'All';
+  const dictMatch=dict.filter(d=>freqSel==='All'||d.frequency===freqSel);
+  const dictPreview=dictMatch.length?dictMatch.map(d=>`<div class="small" style="display:flex;justify-content:space-between;border-bottom:1px solid #eef1f4;padding:4px 0">
+      <span>${esc(d.title)} <span class="muted">· ${esc(d.frequency)} · ${esc(d.priority)}</span></span><span>${d.estMin} min</span></div>`).join('')
+    :'<span class="small muted">No saved tasks for this frequency.</span>';
+  const rowsHtml=assignRows.map((r,i)=>`
+    <div class="taskrow">
+      <input placeholder="Task title" value="${esc(r.title)}" oninput="assignRows[${i}].title=this.value">
+      <input type="number" min="1" title="Estimated minutes" value="${r.estMin}" oninput="assignRows[${i}].estMin=this.value">
+      <select onchange="assignRows[${i}].priority=this.value">${PRIORITIES.map(p=>`<option ${p===r.priority?'selected':''}>${p}</option>`).join('')}</select>
+      <select onchange="assignRows[${i}].frequency=this.value">${FREQ.map(f=>`<option ${f===r.frequency?'selected':''}>${f}</option>`).join('')}</select>
+      <input type="date" value="${r.dueDate||dateStr(0)}" onchange="assignRows[${i}].dueDate=this.value">
+      <button class="btn sm red" onclick="removeRow(${i})" title="Remove">×</button>
+    </div>`).join('');
+  return `<div class="card"><h2>Assign Task</h2>
+    <p class="desc">${esc(sec)} — pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.</p>
+    <div class="row">
+      ${isSuper()?`<div class="field" style="min-width:180px"><label>Department</label>
+        <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];render()">
+          ${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
+      <div class="field" style="min-width:190px"><label>Role</label>
+        <select onchange="window.__assignRole=this.value;render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>
+      <div class="field" style="min-width:250px"><label>Assign to member(s) — Ctrl/Cmd-click for multiple</label>
+        <select id="assignMember" multiple size="3">${memberOptions}</select></div>
+      <div class="field" style="min-width:150px"><label>Shift</label>
+        <select id="assignShift">${SHIFTS.map(s=>`<option>${s}</option>`).join('')}</select></div>
+    </div>
+    <h3>Load from dictionary — ${esc(roleSel||'this role')}</h3>
+    <div class="row">
+      <div class="field" style="min-width:190px"><label>Frequency</label>
+        <select onchange="window.__dictFreq=this.value;render()">
+          <option ${freqSel==='All'?'selected':''}>All</option>
+          ${FREQ.map(f=>`<option ${freqSel===f?'selected':''}>${f}</option>`).join('')}
+        </select></div>
+      <button class="btn" onclick="loadFromDict()">⬇ Load ${dictMatch.length} task(s)</button>
+    </div>
+    <div style="margin:10px 0 4px">${dictPreview}</div>
+    <h3>Tasks to assign</h3>
+    <div class="taskrow small muted" style="font-weight:600"><div>Task title</div><div>Est. min</div><div>Priority</div><div>Frequency</div><div>Due date</div><div></div></div>
+    ${rowsHtml}
+    <button class="btn ghost sm" onclick="addRow()">+ Add another task</button>
+    <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+    <button class="btn" onclick="submitAssign()">Assign &amp; notify member(s)</button>
+    <button class="btn ghost" onclick="saveDictFromRows()">Save these as role task list</button>
+  </div>`;
+}
+function addRow(){ assignRows.push({title:'',estMin:30,priority:'Medium',frequency:'One-time'}); render(); }
+function loadFromDict(){
+  const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
+  const role = window.__assignRole || '';
+  const f = window.__dictFreq || 'All';
+  const list = DB.dict.filter(d=>d.section===sec && (!role||d.role===role) && (f==='All'||d.frequency===f));
+  if(!list.length){ toast('No dictionary tasks for this selection.'); return; }
+  assignRows = assignRows.filter(r=>r.title.trim());
+  list.forEach(d=>assignRows.push({title:d.title, estMin:d.estMin, priority:d.priority, frequency:d.frequency}));
+  if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
+  toast(list.length+' task(s) loaded from the dictionary.');
+  render();
+}
+function removeRow(i){ assignRows.splice(i,1); if(!assignRows.length) addRow(); else render(); }
+function useDict(id){ const d=DB.dict.find(x=>x.id===id); if(!d) return; assignRows.push({title:d.title,estMin:d.estMin,priority:d.priority,frequency:d.frequency}); render(); }
+function saveDictFromRows(){
+  const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section, role=window.__assignRole||'';
+  if(!role){ toast('Pick a role first.'); return; }
+  let n=0;
+  assignRows.forEach(r=>{ if(!r.title.trim()) return;
+    DB.dict.push({id:uid('d'), section:sec, role, title:r.title.trim(), estMin:+r.estMin||0, priority:r.priority, frequency:r.frequency}); n++; });
+  save(); toast(n+' task(s) saved to the dictionary.'); render();
+}
+function submitAssign(){
+  const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section, role=window.__assignRole||'';
+  const sel=document.getElementById('assignMember');
+  const shift=document.getElementById('assignShift').value;
+  const memberIds=Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean);
+  const valid=assignRows.filter(r=>r.title.trim());
+  if(!role){ toast('Select a role.'); return; }
+  if(!memberIds.length){ toast('Select at least one member.'); return; }
+  if(!valid.length){ toast('Add at least one task.'); return; }
+  memberIds.forEach(mid=>{ valid.forEach(r=>{
+    const t={id:uid('t'), code:'TSK-'+String(DB.seq.task++).padStart(4,'0'), title:r.title.trim(), desc:'',
+      section:sec, role, assigneeId:mid, supervisorId:current.id, estMin:+r.estMin||0, actualMin:0,
+      priority:r.priority, shift, dueDate:r.dueDate||dateStr(0), frequency:r.frequency,
+      status:'Not Started', createdAt:Date.now(), updatedAt:Date.now(), timerStart:null, attachments:[], comments:[]};
+    DB.tasks.push(t);
+    notify(mid, `New task ${t.code}`, `${t.title}\nRole: ${role} · Est: ${t.estMin} min · Priority: ${t.priority} · Shift: ${shift} · Due: ${t.dueDate}\nAssigned by ${current.name}.`);
+  }); });
+  save(); toast(`${valid.length} task(s) assigned to ${memberIds.length} member(s).`); assignRows=[]; go('tasks');
+}
+
+/* --------------------------------- team --------------------------------- */
+function teamSec(){ return isSuper() ? (window.__teamSec || SECTIONS[0]) : current.section; }
+function teamView(){
+  const sec=teamSec();
+  const pending = isSuper()
+    ? DB.users.filter(u=>u.status==='pending')
+    : DB.users.filter(u=>u.status==='pending' && u.type==='member' && u.section===sec);
+  const approved = DB.users.filter(u=>u.status==='approved' && u.section===sec && u.id!==current.id);
+  const pendRows=pending.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.enroll)}</td>
+      ${isSuper()?`<td>${typeBadge(m.type)}</td><td>${esc(m.section)}</td>`:''}<td>${esc(m.role)}</td>
+      <td><button class="btn sm green" onclick="approveUser('${m.id}',1)">Approve</button>
+          <button class="btn sm red" onclick="approveUser('${m.id}',0)">Reject</button></td></tr>`).join('');
+  const appRows=approved.map(m=>{ const t=DB.tasks.filter(x=>x.assigneeId===m.id);
+    return `<tr><td>${esc(m.name)}</td><td>${esc(m.enroll)}</td><td>${typeBadge(m.type)}</td><td>${esc(m.role)}</td>
+      <td>${t.length}</td><td>${t.filter(x=>x.status==='Done'||x.status==='Verified').length}</td>
+      <td><button class="btn sm ghost" onclick="removeUser('${m.id}')">Remove</button></td></tr>`; }).join('');
+  const hint=(document.getElementById('addType') && document.getElementById('addType').value==='supervisor')
+    ? (SUPERVISOR_HINT[sec]||'Supervisor') : ((ROLE_HINTS[sec]||[])[0]||'Role');
+  const typeOpts = isSuper()
+    ? `<option value="member">Team Member</option><option value="supervisor">Supervisor</option><option value="superadmin">Super Admin</option>`
+    : `<option value="member">Team Member</option><option value="supervisor">Supervisor</option>`;
+  return `
+  <div class="card"><h2>Add Person</h2>
+    <p class="desc">${isSuper()?'Super Admin — add people to any department.':'Add a supervisor or team member to your department.'} Accounts added here are active immediately.</p>
+    <div class="row">
+      ${isSuper()?`<div class="field" style="min-width:170px"><label>Department</label>
+        <select onchange="window.__teamSec=this.value;render()">${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
+      <div class="field" style="min-width:150px"><label>Type</label><select id="addType">${typeOpts}</select></div>
+      <div class="field" style="min-width:190px"><label>Full name</label><input id="addName" placeholder="e.g. Abdul Karim"></div>
+      <div class="field" style="min-width:130px"><label>Enroll ID</label><input id="addEnroll" placeholder="e.g. 560901"></div>
+      <div class="field" style="min-width:200px"><label>Role / Designation <span class="muted" style="font-weight:400">— type your own</span></label>
+        <input id="addRole" placeholder="${esc(hint)}"></div>
+      <button class="btn" onclick="addMember()">Add person</button>
+    </div>
+    <p class="hint">People can also self-register from the sign-in screen — those appear below for approval.</p>
+    <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+    <h3>Bulk upload (CSV)</h3>
+    <div class="row">
+      <div class="field" style="min-width:280px"><label>Choose CSV file</label>
+        <input type="file" accept=".csv,text/csv" onchange="importCSV(this)"></div>
+      <button class="btn ghost" onclick="downloadTemplate()">⬇ Download CSV template</button>
+    </div>
+    <p class="hint">Columns: <b>name, enroll, role, type</b> (type = member or supervisor; optional, defaults to member).
+      Department = <b>${esc(sec)}</b>. Existing enroll IDs are skipped.</p>
+  </div>
+  <div class="card"><h2>Pending Approvals ${pending.length?badge(pending.length+' waiting','b-orange'):''}</h2>
+    <p class="desc">${isSuper()?'All pending registrations across departments.':'Team members of '+esc(sec)+' waiting for your approval.'}</p>
+    <table><tr><th>Name</th><th>Enroll</th>${isSuper()?'<th>Type</th><th>Department</th>':''}<th>Role</th><th>Action</th></tr>
+    ${pendRows||`<tr><td colspan="${isSuper()?6:4}" class="empty">No pending approvals.</td></tr>`}</table>
+  </div>
+  <div class="card"><h2>Team Directory — ${esc(sec)}</h2>
+    <table><tr><th>Name</th><th>Enroll</th><th>Type</th><th>Role</th><th>Tasks</th><th>Completed</th><th></th></tr>
+    ${appRows||'<tr><td colspan=7 class="empty">No members yet. Add one above.</td></tr>'}</table>
+  </div>`;
+}
+function addMember(){
+  const type=document.getElementById('addType').value;
+  const name=document.getElementById('addName').value.trim();
+  const enroll=document.getElementById('addEnroll').value.trim();
+  const role=document.getElementById('addRole').value.trim();
+  const sec=teamSec();
+  if(!name||!enroll||!role){ toast('Please fill name, enroll and role.'); return; }
+  if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ toast('This enroll ID already exists.'); return; }
+  ensureRole(sec, role);
+  DB.users.push({id:uid('u'), enroll, name, section:sec, role, type, status:'approved'});
+  notifyDept(sec, 'Team update', `${name} (${enroll}) added as ${type==='superadmin'?'Super Admin':(type==='supervisor'?'Supervisor':'Member')} — ${role}.`, current.id);
+  save(); toast(`${name} added to ${sec}.`); render();
+}
+function approveUser(id, ok){
+  const u=DB.users.find(x=>x.id===id); if(!u) return;
+  if(!isSuper() && u.section!==current.section){ toast('Not your department.'); return; }
+  u.status=ok?'approved':'rejected';
+  notify(u.id, `Registration ${ok?'approved':'rejected'}`, `Your registration for ${u.section} (${u.role}) was ${ok?'approved':'rejected'} by ${current.name}.`);
+  save(); render();
+}
+function removeUser(id){ const u=DB.users.find(x=>x.id===id); if(!u) return; if(!confirm('Remove '+u.name+'?')) return;
+  DB.users=DB.users.filter(x=>x.id!==id); save(); render(); }
+
+/* ------------------------------ deletions ------------------------------- */
+function deleteTask(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  if(!confirm('Delete task '+t.code+' — '+t.title+'?')) return;
+  DB.tasks=DB.tasks.filter(x=>x.id!==id);
+  notify(t.assigneeId, 'Task deleted', `${current.name} deleted task ${t.code} (${t.title}).`);
+  save(); toast('Task deleted.'); closeModal(); render();
+}
+function deleteTasksOf(sec){
+  const list = (sec==='All') ? DB.tasks : DB.tasks.filter(t=>t.section===sec);
+  const n=list.length;
+  if(!n){ toast('No tasks'+(sec==='All'?'':' in '+sec)+'.'); return; }
+  if(!confirm('Delete ALL '+n+' task(s)'+(sec==='All'?' in every department':' of '+sec)+'? This cannot be undone.')) return;
+  DB.tasks = (sec==='All') ? [] : DB.tasks.filter(t=>t.section!==sec);
+  save(); toast(n+' task(s) deleted'+(sec==='All'?' (all departments)':' from '+sec)+'.'); render();
+}
+function clearTasks(){
+  const n=DB.tasks.length;
+  if(!n){ toast('No tasks to delete.'); return; }
+  if(!confirm('Delete ALL '+n+' tasks in every department? This cannot be undone.')) return;
+  DB.tasks=[]; save(); toast('All tasks deleted.'); render();
+}
+function clearTeam(){
+  const n=DB.users.filter(u=>u.type!=='superadmin').length;
+  if(!n){ toast('No team members to remove.'); return; }
+  if(!confirm('Remove ALL '+n+' team members and supervisors in every department? This cannot be undone.')) return;
+  DB.users=DB.users.filter(u=>u.type==='superadmin');
+  save(); toast('All team members removed.'); render();
+}
+
+/* ---------------------------- CSV bulk import --------------------------- */
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; }
+      else cur+=c;
+    } else {
+      if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c==='\r'){ /* ignore */ }
+      else cur+=c;
+    }
+  }
+  if(cur!=='' || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+function downloadTemplate(){
+  const csv='name,enroll,role,type\nAbdul Karim,560901,Line Operator,member\nMd. Rashed,560902,Shift Incharge,supervisor\n';
+  download('ACCL_team_template.csv', csv);
+}
+function importCSV(input){
+  const f=input.files && input.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    let rows;
+    try{ rows=parseCSV(String(e.target.result||'')); }catch(err){ toast('Could not read the CSV file.'); return; }
+    if(!rows.length){ toast('The CSV file is empty.'); return; }
+
+    let idx={name:0, enroll:1, role:2, type:3};
+    const first=rows[0].map(x=>String(x).trim().toLowerCase());
+    const hasHeader=first.some(h=>['name','full name','fullname','enroll','enroll id','enrollid','enroll no','role','designation','type','account type'].indexOf(h)>=0);
+    let start=0;
+    if(hasHeader){
+      const find=arr=>first.findIndex(h=>arr.indexOf(h)>=0);
+      idx={
+        name: find(['name','full name','fullname']),
+        enroll: find(['enroll','enroll id','enrollid','enroll no','enrollment','id']),
+        role: find(['role','designation','role / designation','role/designation']),
+        type: find(['type','account type'])
+      };
+      start=1;
+    }
+
+    let added=0, skipped=0, sup=0;
+    for(let i=start;i<rows.length;i++){
+      const r=rows[i];
+      const g=k=> (idx[k]>=0 && idx[k]<r.length) ? String(r[idx[k]]==null?'':r[idx[k]]).trim() : '';
+      const name=g('name'), enroll=g('enroll');
+      const role=g('role')||'Team Member';
+      let type=(g('type')||'member').toLowerCase();
+      type = type.indexOf('sup')===0 ? 'supervisor' : 'member';
+      if(!name || !enroll){ skipped++; continue; }
+      if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ skipped++; continue; }
+      ensureRole(teamSec(), role);
+      DB.users.push({id:uid('u'), enroll, name, section:teamSec(), role, type, status:'approved'});
+      if(type==='supervisor') sup++;
+      added++;
+    }
+    save();
+    input.value='';
+    toast(added+' added'+(sup?(' ('+sup+' supervisor'+(sup>1?'s':'')+')'):'')+', '+skipped+' skipped (missing or duplicate).');
+    render();
+  };
+  reader.onerror=function(){ toast('Could not read the CSV file.'); };
+  reader.readAsText(f);
+}
+
+/* --------------------------- roles & dictionary ------------------------- */
+function dictSec(){ return isSuper() ? (window.__dictSec || SECTIONS[0]) : current.section; }
+function dictView(){
+  const sec=dictSec();
+  const roles=rolesOf(sec);
+  const role=window.__dictRole||(roles[0]&&roles[0].name)||'';
+  const dict=DB.dict.filter(d=>d.section===sec && (!role||d.role===role));
+  const roleRows=roles.map(r=>`<tr><td>${esc(r.name)}</td><td>${DB.users.filter(u=>u.section===sec&&u.role===r.name).length}</td>
+    <td>${DB.dict.filter(d=>d.section===sec&&d.role===r.name).length}</td>
+    <td><button class="btn sm red" onclick="delRole('${r.id}')">Delete</button></td></tr>`).join('');
+  const dictRows=dict.map(d=>`<tr><td>${esc(d.title)}</td><td>${esc(d.role)}</td><td>${d.estMin} min</td>
+    <td>${prioBadge(d.priority)}</td><td>${esc(d.frequency)}</td>
+    <td><button class="btn sm red" onclick="delDict('${d.id}')">Delete</button></td></tr>`).join('');
+  return `
+  <div class="card"><h2>Roles — ${esc(sec)}</h2><p class="desc">Roles are created automatically when you add a person. You can also add one here.</p>
+    <div class="row">
+      ${isSuper()?`<div class="field" style="min-width:180px"><label>Department</label>
+        <select onchange="window.__dictSec=this.value;window.__dictRole='';render()">${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
+      <div class="field" style="min-width:240px"><label>New role</label><input id="newRole" placeholder="e.g. Packer Operator"></div>
+      <button class="btn" onclick="addRole()">Add role</button>
+    </div>
+    <table><tr><th>Role</th><th>People</th><th>Saved tasks</th><th></th></tr>${roleRows||'<tr><td colspan=4 class="empty">No roles yet.</td></tr>'}</table>
+  </div>
+  <div class="card"><h2>Role-wise Task Dictionary</h2><p class="desc">Save frequently used tasks per role so they can be reused when assigning.</p>
+    <div class="row">
+      <div class="field" style="min-width:220px"><label>Role</label>
+        <select onchange="window.__dictRole=this.value;render()">${roles.map(r=>`<option ${r.name===role?'selected':''}>${esc(r.name)}</option>`).join('')||'<option value="">—</option>'}</select></div>
+      <div class="field" style="min-width:260px"><label>Task title</label><input id="dTitle"></div>
+      <div class="field" style="min-width:100px"><label>Est. min</label><input id="dMin" type="number" value="30"></div>
+      <div class="field" style="min-width:120px"><label>Priority</label><select id="dPrio">${PRIORITIES.map(p=>`<option>${p}</option>`).join('')}</select></div>
+      <div class="field" style="min-width:130px"><label>Frequency</label><select id="dFreq">${FREQ.map(f=>`<option>${f}</option>`).join('')}</select></div>
+      <button class="btn" onclick="addDict()">Save to dictionary</button>
+    </div>
+    <table><tr><th>Task</th><th>Role</th><th>Time</th><th>Priority</th><th>Frequency</th><th></th></tr>
+    ${dictRows||'<tr><td colspan=6 class="empty">No saved tasks for this role.</td></tr>'}</table>
+  </div>`;
+}
+function addRole(){
+  const sec=dictSec(), name=document.getElementById('newRole').value.trim();
+  if(!name){ toast('Enter a role name.'); return; }
+  if(DB.roles.some(r=>r.section===sec&&r.name.toLowerCase()===name.toLowerCase())){ toast('Role already exists.'); return; }
+  ensureRole(sec, name); save(); render();
+}
+function delRole(id){ const r=DB.roles.find(x=>x.id===id); if(!r) return; if(!confirm('Delete role '+r.name+'?')) return;
+  DB.roles=DB.roles.filter(x=>x.id!==id); save(); render(); }
+function addDict(){
+  const sec=dictSec(), role=window.__dictRole||'';
+  const title=document.getElementById('dTitle').value.trim();
+  if(!role){ toast('Pick a role.'); return; }
+  if(!title){ toast('Enter a task title.'); return; }
+  DB.dict.push({id:uid('d'), section:sec, role, title, estMin:+document.getElementById('dMin').value||0,
+    priority:document.getElementById('dPrio').value, frequency:document.getElementById('dFreq').value});
+  save(); render();
+}
+function delDict(id){ const d=DB.dict.find(x=>x.id===id); if(!d) return; DB.dict=DB.dict.filter(x=>x.id!==id); save(); render(); }
+
+/* ------------------------------- reports -------------------------------- */
+function dstr(ts){ const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function taskDateKey(t){
+  if(dateBasis==='due') return t.dueDate||'';
+  if(dateBasis==='updated') return t.updatedAt? dstr(t.updatedAt) : '';
+  return t.createdAt? dstr(t.createdAt) : '';
+}
+function dateWiseTasks(){
+  let ts=visibleTasks(current);
+  if(isSuper() && window.__repSec && window.__repSec!=='All') ts=ts.filter(t=>t.section===window.__repSec);
+  if(dateFrom) ts=ts.filter(t=>taskDateKey(t)>=dateFrom);
+  if(dateTo) ts=ts.filter(t=>taskDateKey(t)<=dateTo);
+  return ts;
+}
+function reportsView(){
+  /* all reports below use the same date basis + range as the Date-wise record */
+  const ts=dateWiseTasks();
+  const group=(fn)=>{ const m={}; ts.forEach(t=>{ const k=fn(t); (m[k]=m[k]||{n:0,est:0,act:0,done:0,over:0}); m[k].n++;
+    m[k].est+=+t.estMin||0; m[k].act+=+t.actualMin||0; if(t.status==='Done'||t.status==='Verified') m[k].done++; if(isOverdue(t)) m[k].over++; }); return m; };
+  const table=(m)=>Object.keys(m).sort((a,b)=>m[b].n-m[a].n).map(k=>{ const r=m[k];
+    return `<tr><td>${esc(k)}</td><td>${r.n}</td><td>${r.done}</td><td>${Math.round(r.done*100/r.n)}%</td><td>${r.over}</td><td>${r.est}</td><td>${r.act}</td><td>${r.est?Math.round(r.act*100/r.est):0}%</td></tr>`;
+  }).join('')||'<tr><td colspan=8 class="empty">—</td></tr>';
+  const head=`<tr><th>Group</th><th>Tasks</th><th>Done</th><th>Completion</th><th>Overdue</th><th>Est. min</th><th>Actual min</th><th>Time used</th></tr>`;
+
+  /* ---- date-wise record ---- */
+  const dw=dateWiseTasks();
+  const dates=[...new Set(dw.map(taskDateKey).filter(Boolean))].sort().reverse();
+  const tot={n:0,est:0,act:0,c:{}}; STATUSES.forEach(s=>tot.c[s]=0);
+  const dwRows=dates.map(d=>{
+    const rows=dw.filter(t=>taskDateKey(t)===d);
+    const c={}; STATUSES.forEach(s=>c[s]=0); rows.forEach(t=>c[t.status]++);
+    const est=rows.reduce((a,t)=>a+(+t.estMin||0),0), act=rows.reduce((a,t)=>a+(+t.actualMin||0),0);
+    tot.n+=rows.length; tot.est+=est; tot.act+=act; STATUSES.forEach(s=>tot.c[s]+=c[s]);
+    return `<tr><td><b>${esc(d)}</b></td><td>${rows.length}</td>${STATUSES.map(s=>`<td>${c[s]||''}</td>`).join('')}<td>${est}</td><td>${act}</td></tr>`;
+  }).join('');
+  const dwDetail=dw.slice().sort((a,b)=>taskDateKey(b).localeCompare(taskDateKey(a))).map(t=>`
+    <tr><td class="small">${esc(taskDateKey(t))}</td>
+      <td><b>${esc(t.code)}</b><div class="small muted">${esc(t.title)}</div></td>
+      <td class="small">${esc(t.role)}</td><td class="small">${esc(user(t.assigneeId).name)}</td>
+      <td>${statusBadge(t.status)}</td><td>${prioBadge(t.priority)}</td>
+      <td class="small">${t.estMin} / ${t.actualMin}</td></tr>`).join('');
+
+  return `
+  <div class="card"><h2>Reports — ${isSuper()?'All Departments':esc(current.section)}</h2>
+    <p class="desc">Every report below follows the <b>Date basis</b> and <b>range</b> selected in the Date-wise record. Adjust it there to filter all sections and exports.</p>
+    <div class="row">
+      ${isSuper()?`<div class="field" style="min-width:200px"><label>Department</label>
+        <select onchange="window.__repSec=this.value;render()">
+          <option value="All" ${(window.__repSec||'All')==='All'?'selected':''}>All departments</option>
+          ${SECTIONS.map(s=>`<option ${window.__repSec===s?'selected':''}>${esc(s)}</option>`).join('')}
+        </select></div>`:''}
+      <button class="btn" onclick="exportCSV()">⬇ Export all tasks (CSV)</button>
+      <button class="btn" onclick="exportDateWise()">⬇ Export date-wise record (CSV)</button>
+      <button class="btn ghost" onclick="exportDict()">⬇ Export dictionary (CSV)</button>
+    </div>
+  </div>
+
+  <div class="card"><h2>Date-wise Task &amp; Status Record</h2>
+    <p class="desc">Tasks grouped by date with status counts — for trend and performance analysis.</p>
+    <div class="row">
+      <div class="field" style="min-width:190px"><label>Date basis</label>
+        <select onchange="dateBasis=this.value;render()">
+          <option value="created" ${dateBasis==='created'?'selected':''}>Created date</option>
+          <option value="due" ${dateBasis==='due'?'selected':''}>Due date</option>
+          <option value="updated" ${dateBasis==='updated'?'selected':''}>Last updated</option>
+        </select></div>
+      <div class="field" style="min-width:160px"><label>From</label><input type="date" value="${dateFrom}" onchange="dateFrom=this.value;render()"></div>
+      <div class="field" style="min-width:160px"><label>To</label><input type="date" value="${dateTo}" onchange="dateTo=this.value;render()"></div>
+      <button class="btn ghost" onclick="dateFrom='';dateTo='';render()">Clear filter</button>
+    </div>
+    <table>
+      <tr><th>Date</th><th>Total</th>${STATUSES.map(s=>`<th>${esc(s)}</th>`).join('')}<th>Est. min</th><th>Actual min</th></tr>
+      ${dwRows||'<tr><td colspan="11" class="empty">No records in this range.</td></tr>'}
+      ${dates.length?`<tr style="font-weight:700;background:#eef3f8"><td>Total</td><td>${tot.n}</td>${STATUSES.map(s=>`<td>${tot.c[s]||''}</td>`).join('')}<td>${tot.est}</td><td>${tot.act}</td></tr>`:''}
+    </table>
+  </div>
+
+  <div class="card"><h2>Task Detail — filtered</h2>
+    <table><tr><th>Date</th><th>Task</th><th>Role</th><th>Assignee</th><th>Status</th><th>Priority</th><th>Est / Actual</th></tr>
+    ${dwDetail||'<tr><td colspan=7 class="empty">No records.</td></tr>'}</table>
+  </div>
+
+  <div class="card"><h2>By Status</h2><p class="desc">Within the selected date basis and range.</p><table>${head}${table(group(t=>t.status))}</table></div>
+  <div class="card"><h2>By Role</h2><p class="desc">Within the selected date basis and range.</p><table>${head}${table(group(t=>t.role))}</table></div>
+  <div class="card"><h2>By Team Member</h2><p class="desc">Within the selected date basis and range.</p><table>${head}${table(group(t=>user(t.assigneeId).name))}</table></div>`;
+}
+function exportDateWise(){
+  const ts=dateWiseTasks().slice().sort((a,b)=>taskDateKey(b).localeCompare(taskDateKey(a)));
+  const head=['Date','Code','Title','Department','Role','Assignee','Enroll','Status','Priority','Shift','Frequency','EstMin','ActualMin'];
+  const rows=ts.map(t=>[taskDateKey(t),t.code,t.title,t.section,t.role,user(t.assigneeId).name,user(t.assigneeId).enroll,t.status,t.priority,t.shift,t.frequency,t.estMin,t.actualMin]);
+  download('ACCL_datewise_tasks.csv',[head,...rows].map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n'));
+}
+function download(name,text){ const b=new Blob([text],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
+function exportCSV(){
+  const ts=dateWiseTasks();
+  const head=['Code','Title','Department','Role','Assignee','Enroll','Status','Priority','Shift','Frequency','EstMin','ActualMin','DueDate','Overdue','Created','Updated'];
+  const rows=ts.map(t=>[t.code,t.title,t.section,t.role,user(t.assigneeId).name,user(t.assigneeId).enroll,t.status,t.priority,t.shift,t.frequency,t.estMin,t.actualMin,t.dueDate,isOverdue(t)?'Yes':'No',fmt(t.createdAt),fmt(t.updatedAt)]);
+  download('ACCL_tasks.csv',[head,...rows].map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n'));
+}
+function exportDict(){
+  const head=['Department','Role','Task','EstMin','Priority','Frequency'];
+  const rows=DB.dict.map(d=>[d.section,d.role,d.title,d.estMin,d.priority,d.frequency]);
+  download('ACCL_dictionary.csv',[head,...rows].map(r=>r.map(c=>`"${c}"`).join(',')).join('\n'));
+}
+
+/* ------------------------------ departments ----------------------------- */
+function departmentsView(){
+  const rows=SECTIONS.map(s=>{
+    const sups=DB.users.filter(u=>u.type==='supervisor'&&u.section===s&&u.status==='approved').length;
+    const mems=DB.users.filter(u=>u.type==='member'&&u.section===s&&u.status==='approved').length;
+    const pend=DB.users.filter(u=>u.status==='pending'&&u.section===s).length;
+    const t=DB.tasks.filter(x=>x.section===s);
+    const done=t.filter(x=>x.status==='Done'||x.status==='Verified').length;
+    const over=t.filter(isOverdue).length;
+    const est=t.reduce((a,x)=>a+(+x.estMin||0),0), act=t.reduce((a,x)=>a+(+x.actualMin||0),0);
+    return `<tr><td><b>${esc(s)}</b></td><td>${sups}</td><td>${mems}</td>
+      <td>${pend?badge(pend,'b-orange'):'—'}</td><td>${t.length}</td><td>${done}</td>
+      <td>${t.length?Math.round(done*100/t.length):0}%</td><td>${over?badge(over,'b-red'):'—'}</td>
+      <td class="small">${est} / ${act}</td>
+      <td><button class="btn sm ghost" onclick="window.__teamSec='${s}';go('team')">Team</button>
+          <button class="btn sm ghost" onclick="window.__assignSec='${s}';window.__assignRole='';assignRows=[];go('assign')">Assign</button>
+          <button class="btn sm ghost" onclick="window.__repSec='${s}';go('reports')">Reports</button></td></tr>`;
+  }).join('');
+  const tot=DB.tasks.length;
+  const danger = isSuper() ? `
+  <div class="card" style="border-color:#f3d6d3;background:#fffafa"><h2 style="color:#C0392B">Danger Zone — Super Admin</h2>
+    <p class="desc">Permanent deletions. These cannot be undone.</p>
+    <div class="row">
+      <div class="field" style="min-width:220px"><label>Department</label>
+        <select id="delSec">
+          <option value="All">All departments</option>
+          ${SECTIONS.map(s=>`<option>${esc(s)}</option>`).join('')}
+        </select></div>
+      <button class="btn red" onclick="deleteTasksOf(document.getElementById('delSec').value)">Delete tasks of selected department</button>
+      <button class="btn red" onclick="clearTasks()">Delete ALL tasks (${tot})</button>
+      <button class="btn red" onclick="clearTeam()">Remove ALL team members</button>
+    </div>
+  </div>` : '';
+  return `<div class="card"><h2>Departments — Super Admin</h2>
+    <p class="desc">Overall status of every department (${tot} tasks across ${SECTIONS.length} departments). Manage any department directly from here.</p>
+    <table><tr><th>Department</th><th>Supervisors</th><th>Members</th><th>Pending</th><th>Tasks</th><th>Done</th><th>Completion</th><th>Overdue</th><th>Est / Actual min</th><th>Actions</th></tr>
+    ${rows}</table></div>
+  ${danger}`;
+}
+
+/* ------------------------------- workload ------------------------------- */
+function loadColor(p){ return p>100?'#C0392B':p>=80?'#E67E22':'#1E8449'; }
+function workloadScope(u, sec){ return isSuper() ? (sec==='All' || u.section===sec) : (u.section===current.section); }
+function firstOfMonth(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-01'; }
+function daysBetween(a,b){ const A=new Date(a+'T00:00:00'), B=new Date(b+'T00:00:00'); return Math.max(1, Math.round((B-A)/86400000)+1); }
+function workloadView(){
+  const avail=+DB.settings.dailyMinutes||480;
+  const defFrom=firstOfMonth(), defTo=(dateStr(-1)>defFrom?dateStr(-1):defFrom);
+  const from=window.__loadFrom||defFrom;
+  const to=window.__loadTo||defTo;
+  const days=daysBetween(from,to);
+  const cap=avail*days;                       /* available minutes per person over the range */
+  const sec=isSuper() ? (window.__loadSec||'All') : current.section;
+  const scope=u=>workloadScope(u, sec);
+  const inScopeSec=s=>isSuper()?(sec==='All'||s===sec):(s===current.section);
+
+  const dayTasks=DB.tasks.filter(t=>t.dueDate && t.dueDate>=from && t.dueDate<=to && inScopeSec(t.section));
+
+  /* ---- by role ---- */
+  const roleKeys=[];
+  DB.roles.forEach(r=>{ if(isSuper()?(sec==='All'||r.section===sec):r.section===current.section) roleKeys.push(r.section+'\u0001'+r.name); });
+  const roleRows=roleKeys.map(k=>{
+    const [s,role]=k.split('\u0001');
+    const mems=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&u.section===s&&u.role===role);
+    const ts=dayTasks.filter(t=>t.section===s&&t.role===role);
+    const mins=ts.reduce((a,t)=>a+(+t.estMin||0),0);
+    const av=mems.length*cap;
+    return {s,role,mems:mems.length,ts:ts.length,mins,av,pct:av?Math.round(mins*100/av):0};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  /* ---- by person ---- */
+  const memberRows=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&scope(u)).map(u=>{
+    const ts=dayTasks.filter(t=>t.assigneeId===u.id);
+    const mins=ts.reduce((a,t)=>a+(+t.estMin||0),0);
+    return {u,ts:ts.length,mins,pct:Math.round(mins*100/cap)};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  const totMins=dayTasks.reduce((a,t)=>a+(+t.estMin||0),0);
+  const totAv=memberRows.length*cap;
+  const totPct=totAv?Math.round(totMins*100/totAv):0;
+
+  const bar=p=>`<div class="bar" style="min-width:80px"><i style="width:${Math.min(p,100)}%;background:${loadColor(p)}"></i></div><span class="small"><b>${p}%</b></span>`;
+
+  /* ---- by department (super admin) ---- */
+  const deptRows=SECTIONS.map(s=>{
+    const mems=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&u.section===s);
+    const ts=dayTasks.filter(t=>t.section===s);
+    const mins=ts.reduce((a,t)=>a+(+t.estMin||0),0);
+    const av=mems.length*cap;
+    return {s,mems:mems.length,ts:ts.length,mins,av,pct:av?Math.round(mins*100/av):0};
+  }).filter(d=>d.mems||d.ts).sort((a,b)=>b.pct-a.pct);
+
+  const deptTable=deptRows.map(d=>`<tr>
+      <td><b>${esc(d.s)}</b></td><td>${d.mems}</td><td>${d.ts}</td><td>${d.mins}</td><td>${d.av}</td>
+      <td>${bar(d.pct)}</td>
+      <td><button class="btn sm ghost" onclick="window.__loadSec='${d.s}';go('workload')">Open</button></td></tr>`).join('')
+      ||'<tr><td colspan=7 class="empty">No department load for this date.</td></tr>';
+
+  const deptCard = isSuper() ? `
+  <div class="card"><h2>Load by Department</h2>
+    <p class="desc">Department-wise capacity vs assigned minutes. Available = members × ${avail} × ${days} days.</p>
+    <table><tr><th>Department</th><th>Members</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th><th></th></tr>
+    ${deptTable}</table>
+  </div>` : '';
+
+  const roleTable=roleRows.map(r=>`<tr>
+      <td><b>${esc(r.role)}</b><div class="small muted">${esc(r.s)}</div></td>
+      <td>${r.mems}</td><td>${r.ts}</td><td>${r.mins}</td><td>${r.av}</td>
+      <td>${bar(r.pct)}</td></tr>`).join('')||'<tr><td colspan=6 class="empty">No roles in scope.</td></tr>';
+
+  const memberTable=memberRows.map(m=>`<tr>
+      <td><b>${esc(m.u.name)}</b><div class="small muted">${esc(m.u.enroll)} · ${esc(m.u.section)}</div></td>
+      <td>${esc(m.u.role)}</td><td>${m.ts}</td><td>${m.mins}</td><td>${cap}</td>
+      <td>${bar(m.pct)}</td></tr>`).join('')||'<tr><td colspan=6 class="empty">No team members in scope.</td></tr>';
+
+  return `
+  <div class="card"><h2>Workload — ${esc(sec==='All'?'All Departments':sec)}</h2>
+    <p class="desc">Capacity vs assigned task minutes over a date range. Load % = assigned minutes ÷ available minutes.</p>
+    <div class="row">
+      <div class="field" style="min-width:160px"><label>From</label>
+        <input type="date" value="${from}" onchange="window.__loadFrom=this.value;render()"></div>
+      <div class="field" style="min-width:160px"><label>To</label>
+        <input type="date" value="${to}" onchange="window.__loadTo=this.value;render()"></div>
+      <button class="btn ghost" onclick="window.__loadFrom='';window.__loadTo='';render()">This month</button>
+      ${isSuper()?`<div class="field" style="min-width:200px"><label>Department</label>
+        <select onchange="window.__loadSec=this.value;render()">
+          <option value="All" ${sec==='All'?'selected':''}>All departments</option>
+          ${SECTIONS.map(s=>`<option ${sec===s?'selected':''}>${esc(s)}</option>`).join('')}
+        </select></div>`:''}
+      <div class="field" style="min-width:180px"><label>Available minutes / person / day</label>
+        <input type="number" min="1" value="${avail}" onchange="DB.settings.dailyMinutes=+this.value||480;save();render()"></div>
+    </div>
+    <div class="grid g4">
+      <div class="kpi"><div class="v">${dayTasks.length}</div><div class="l">Tasks in range</div></div>
+      <div class="kpi"><div class="v">${totMins}</div><div class="l">Assigned minutes</div></div>
+      <div class="kpi"><div class="v">${totAv}</div><div class="l">Available minutes</div></div>
+      <div class="kpi"><div class="v" style="color:${loadColor(totPct)}">${totPct}%</div><div class="l">Overall load</div></div>
+    </div>
+    <p class="hint"><b>${days}</b> day(s) · ${esc(from)} → ${esc(to)} · per person capacity = ${avail} × ${days} = <b>${cap} min</b>.
+      &nbsp; Load colour: <b style="color:#1E8449">under 80%</b> · <b style="color:#E67E22">80–100%</b> · <b style="color:#C0392B">over 100%</b></p>
+  </div>
+
+  <div class="card"><h2>Load by Role</h2>
+    <p class="desc">Available minutes = members × ${avail} × ${days} days.</p>
+    <table><tr><th>Role</th><th>Members</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th></tr>
+    ${roleTable}</table>
+  </div>
+
+  ${deptCard}
+
+  <div class="card"><h2>Load by Team Member</h2>
+    <p class="desc">Available minutes = ${avail} × ${days} days = ${cap} min per person.</p>
+    <table><tr><th>Member</th><th>Role</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th></tr>
+    ${memberTable}</table>
+  </div>`;
+}
+
+function notifyView(){
+  const list=myNotifs();
+  const rows=list.map(n=>`<div class="nrow ${n.read?'':'unread'}">
+      <div class="t">${esc(n.title)}</div><div class="b">${esc(n.body)}</div><div class="m">${fmt(n.at)}</div></div>`).join('');
+  return `<div class="card"><h2>Notifications</h2>
+    <p class="desc">Task assignments, approvals and updates relevant to you.</p>
+    ${rows||'<div class="empty">No notifications.</div>'}</div>`;
+}
+
+/* ------------------------------ task detail ----------------------------- */
+function openTask(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  const a=user(t.assigneeId), s=user(t.supervisorId);
+  const isAssignee=current.id===t.assigneeId;
+  const isSup = isSuper() || (current.type==='supervisor' && current.section===t.section);
+  const comments=t.comments.map(c=>`<div style="border-left:3px solid #cfe0ee;padding:6px 10px;margin-bottom:6px">
+    <b>${esc(user(c.by).name)}</b> <span class="small muted">${fmt(c.at)}</span><div class="small">${esc(c.text)}</div></div>`).join('')||'<div class="small muted">No comments.</div>';
+  const atts=t.attachments.map(f=>`<span class="pill">📎 ${esc(f.name)} <span class="muted">${esc(f.size)}</span></span>`).join('')||'<span class="small muted">No attachments.</span>';
+  const statusOpts=MEMBER_STATUSES.map(x=>`<option ${x===t.status?'selected':''}>${x}</option>`).join('');
+  const memberPanel=isAssignee?`<h3>Update status</h3>
+    <div class="row">
+      <div class="field" style="min-width:170px"><label>Status</label><select id="stSel">${statusOpts}</select></div>
+      <div class="field" style="min-width:130px"><label>Actual minutes</label><input id="stMin" type="number" value="${t.actualMin||0}"></div>
+      <button class="btn green" onclick="updateStatus('${t.id}')">Submit update</button>
+      <button class="btn ghost" onclick="toggleTimer('${t.id}')">${t.timerStart?'⏹ Stop timer':'▶ Start timer'}</button>
+    </div>`:'';
+  const supPanel=isSup?`<h3>Supervisor actions</h3>
+    <div class="row">
+      <button class="btn green" onclick="verifyTask('${t.id}',1)">✔ Verify as done</button>
+      <button class="btn red" onclick="verifyTask('${t.id}',0)">↺ Reopen / reject</button>
+    </div>`:'';
+  modal(`
+    <h2>${esc(t.code)} · ${esc(t.title)}</h2>
+    <div style="margin-bottom:10px">${statusBadge(t.status)} ${prioBadge(t.priority)} ${badge(t.section,'b-blue')} ${badge(t.role,'b-grey')} ${isOverdue(t)?badge('Overdue','b-red'):''}</div>
+    <div class="grid g2 small">
+      <div><b>Assignee:</b> ${esc(a.name)} (${esc(a.enroll)})</div><div><b>Supervisor:</b> ${esc(s.name)}</div>
+      <div><b>Estimated:</b> ${t.estMin} min</div><div><b>Actual:</b> ${t.actualMin} min ${t.timerStart?'· timer running':''}</div>
+      <div><b>Shift:</b> ${esc(t.shift)}</div><div><b>Frequency:</b> ${esc(t.frequency)}</div>
+      <div><b>Due:</b> ${t.dueDate||'—'}</div><div><b>Created:</b> ${fmt(t.createdAt)}</div>
+    </div>
+    <h3>Attachments (evidence)</h3><div>${atts}</div>
+    ${(isAssignee||isSup)?`<div style="margin-top:8px"><input type="file" onchange="attachFile('${t.id}',this)"></div>`:''}
+    <h3>Comments</h3><div>${comments}</div>
+    <div class="row" style="margin-top:8px"><div class="field" style="flex:1;min-width:220px;margin-bottom:0"><input id="cmtText" placeholder="Write a comment…"></div>
+      <button class="btn ghost" onclick="addComment('${t.id}')">Comment</button></div>
+    ${memberPanel}${supPanel}
+    ${isSup?`<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+      <button class="btn red" onclick="deleteTask('${t.id}')">🗑 Delete this task</button></div>`:''}
+    <div style="margin-top:16px"><button class="btn grey" onclick="closeModal()">Close</button></div>`);
+}
+function updateStatus(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  t.status=document.getElementById('stSel').value; t.actualMin=+document.getElementById('stMin').value||0; t.updatedAt=Date.now();
+  if(t.supervisorId) notify(t.supervisorId, `Task ${t.code} updated`, `${current.name} set ${t.code} (${t.title}) to "${t.status}". Actual: ${t.actualMin} min.`);
+  save(); toast('Status updated.'); closeModal(); render();
+}
+function toggleTimer(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  if(t.timerStart){ const mins=Math.max(1,Math.round((Date.now()-t.timerStart)/60000)); t.actualMin=(+t.actualMin||0)+mins; t.timerStart=null; toast(`Timer stopped · +${mins} min.`); }
+  else { t.timerStart=Date.now(); toast('Timer started.'); }
+  t.updatedAt=Date.now(); save(); openTask(id);
+}
+function attachFile(id,input){ const t=DB.tasks.find(x=>x.id===id); const f=input.files[0]; if(!f) return;
+  t.attachments.push({name:f.name,size:Math.round(f.size/1024)+' KB'}); save(); openTask(id); }
+function addComment(id){ const t=DB.tasks.find(x=>x.id===id); const txt=document.getElementById('cmtText').value.trim(); if(!txt) return;
+  t.comments.push({by:current.id,at:Date.now(),text:txt}); t.updatedAt=Date.now(); save(); openTask(id); }
+function verifyTask(id, ok){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  t.status=ok?'Verified':'Reopened'; t.updatedAt=Date.now();
+  notify(t.assigneeId, `Task ${t.code} ${ok?'verified':'reopened'}`, `${current.name} ${ok?'verified':'reopened'} ${t.code} (${t.title}).`);
+  save(); toast(ok?'Task verified.':'Task reopened.'); closeModal(); render();
+}
+function modal(html){ const bg=document.createElement('div'); bg.className='modal-bg'; bg.id='modalBg';
+  bg.innerHTML=`<div class="modal">${html}</div>`; bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
+function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remove(); }
+
+load();
+render();
+</script>
+</body>
+</html>
