@@ -217,11 +217,10 @@ async function apiLoad(){
 }
 function syncDot(){ return API_OK?'●':(apiUrl()?'◐':'○'); }
 function openSync(){
-  const u=apiUrl(), t=apiToken();
+  const u=apiUrl();
   modal(`<h2>Backend sync — Google Sheets</h2>
-    <p class="desc">Paste the Apps Script Web App URL (ends with <b>/exec</b>) and the same token you set in Code.gs. Leave blank to use this browser only.</p>
+    <p class="desc">Paste your Apps Script Web App URL (ends with <b>/exec</b>). Leave blank to use this browser only.</p>
     <div class="field"><label>Web App URL</label><input id="syncUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${esc(u)}"></div>
-    <div class="field"><label>Token</label><input id="syncToken" placeholder="your secret token" value="${esc(t)}"></div>
     <div id="syncStatus" class="small muted">${u?(API_OK?'Connected.':'Configured — not verified yet.'):'Not configured (browser-only mode).'}</div>
     <div class="row" style="margin-top:14px">
       <button class="btn green" onclick="testSync()">Test connection</button>
@@ -232,7 +231,6 @@ function openSync(){
 }
 function readSyncInputs(){
   localStorage.setItem('wt360_api_url',(document.getElementById('syncUrl').value||'').trim());
-  localStorage.setItem('wt360_api_token',(document.getElementById('syncToken').value||'').trim());
 }
 function testSync(){
   readSyncInputs();
@@ -247,7 +245,7 @@ function saveSync(){
   apiLoad().then(ok=>{ toast(ok?'Connected to the sheet.':'Saved. Could not reach the backend yet.'); render(); });
 }
 function clearSync(){
-  localStorage.setItem('wt360_api_url',''); localStorage.setItem('wt360_api_token','');
+  localStorage.setItem('wt360_api_url',''); localStorage.removeItem('wt360_api_token');
   API_OK=false; closeModal(); toast('Disconnected. Using this browser only.'); render();
 }
 
