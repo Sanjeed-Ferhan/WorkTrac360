@@ -167,7 +167,70 @@ function blankDB(){
 }
 let DB;
 function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw):blankDB(); }catch(e){ DB=blankDB(); } if(!DB.seq) DB.seq=blankDB().seq; if(!DB.settings) DB.settings={dailyMinutes:480}; }
-function save(){ try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){} }
+
+/* ---- Backend sync: Google Sheets + Apps Script ----
+   Configure the Web App URL + token in the app's Sync dialog (top bar).
+   With no URL set, the app runs browser-only (localStorage). */
+let API_OK=false, API_AT=0;
+function apiUrl(){ return (localStorage.getItem('wt360_api_url')||'').trim(); }
+function apiToken(){ return (localStorage.getItem('wt360_api_token')||'').trim(); }
+function save(){
+  try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
+  const u=apiUrl(); if(!u) return;
+  fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB})})
+    .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); }).catch(()=>{ API_OK=false; });
+}
+async function apiLoad(){
+  const u=apiUrl(); if(!u) return false;
+  try{
+    const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
+    const j=await r.json();
+    if(j&&j.ok&&j.db){
+      DB=j.db;
+      if(!DB.seq) DB.seq=blankDB().seq;
+      if(!DB.settings) DB.settings={dailyMinutes:480};
+      try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
+      API_OK=true; API_AT=Date.now(); return true;
+    }
+    API_OK=false;
+  }catch(e){ API_OK=false; }
+  return false;
+}
+function syncDot(){ return API_OK?'●':(apiUrl()?'◐':'○'); }
+function openSync(){
+  const u=apiUrl(), t=localStorage.getItem('wt360_api_token')||'';
+  modal(`<h2>Backend sync — Google Sheets</h2>
+    <p class="desc">Paste the Apps Script Web App URL (ends with <b>/exec</b>) and the same token you set in Code.gs. Leave blank to use this browser only.</p>
+    <div class="field"><label>Web App URL</label><input id="syncUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${esc(u)}"></div>
+    <div class="field"><label>Token</label><input id="syncToken" placeholder="your secret token" value="${esc(t)}"></div>
+    <div id="syncStatus" class="small muted">${u?(API_OK?'Connected.':'Configured — not verified yet.'):'Not configured (browser-only mode).'}</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn green" onclick="testSync()">Test connection</button>
+      <button class="btn" onclick="saveSync()">Save &amp; sync now</button>
+      <button class="btn ghost" onclick="clearSync()">Disconnect</button>
+      <button class="btn grey" onclick="closeModal()">Close</button>
+    </div>`);
+}
+function readSyncInputs(){
+  localStorage.setItem('wt360_api_url',(document.getElementById('syncUrl').value||'').trim());
+  localStorage.setItem('wt360_api_token',(document.getElementById('syncToken').value||'').trim());
+}
+function testSync(){
+  readSyncInputs();
+  const st=document.getElementById('syncStatus'); st.textContent='Testing…';
+  apiLoad().then(ok=>{
+    st.textContent = ok ? 'Connected — data loaded from the sheet.' : 'Could not connect. Check the URL, the token, and that the Web App is deployed with access "Anyone".';
+    if(ok){ toast('Connected to the sheet.'); render(); }
+  });
+}
+function saveSync(){
+  readSyncInputs(); closeModal();
+  apiLoad().then(ok=>{ toast(ok?'Connected to the sheet.':'Saved. Could not reach the backend yet.'); render(); });
+}
+function clearSync(){
+  localStorage.removeItem('wt360_api_url'); localStorage.removeItem('wt360_api_token');
+  API_OK=false; closeModal(); toast('Disconnected. Using this browser only.'); render();
+}
 
 /* ------------------------------ helpers --------------------------------- */
 function dateStr(o){ const d=new Date(); d.setDate(d.getDate()+o); return d.toISOString().slice(0,10); }
@@ -240,6 +303,7 @@ function loginView(){
     <div class="field"><label>Enroll ID</label><input id="loginId" placeholder="e.g. 560501" onkeydown="if(event.key==='Enter')loginByInput()"></div>
     <button class="btn" style="width:100%" onclick="loginByInput()">Sign in</button>
     <p style="margin:14px 0 0;font-size:13px">New user? <span class="link" onclick="showRegister()">Register here</span></p>
+    <p style="margin:8px 0 0;font-size:12.5px"><span class="link" onclick="openSync()">Backend sync (Google Sheets)</span></p>
   </div></div>`;
 }
 function registerView(){
@@ -381,6 +445,7 @@ function shell(){
     <div class="spacer"></div>
     <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
+    <button class="btn ghost sm" onclick="openSync()" title="Backend sync">Sync ${syncDot()}</button>
     <button class="btn ghost sm" onclick="logout()">Log out</button>
   </div>
   <div class="nav">${nav}</div>
@@ -1362,6 +1427,14 @@ function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remov
 
 load();
 render();
+if(apiUrl()) apiLoad().then(ok=>{ if(ok) render(); });
+setInterval(()=>{
+  if(!current || !apiUrl()) return;
+  if(document.getElementById('modalBg')) return;
+  const ae=document.activeElement;
+  if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+  apiLoad().then(ok=>{ if(ok) render(); });
+}, 60000);
 </script>
 </body>
 </html>
