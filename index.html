@@ -851,7 +851,7 @@ function assignView(){
       <input type="number" min="1" title="Estimated minutes" value="${r.estMin}" oninput="assignRows[${i}].estMin=this.value">
       <select onchange="assignRows[${i}].priority=this.value">${PRIORITIES.map(p=>`<option ${p===r.priority?'selected':''}>${p}</option>`).join('')}</select>
       <select onchange="assignRows[${i}].frequency=this.value">${FREQ.map(f=>`<option ${f===r.frequency?'selected':''}>${f}</option>`).join('')}</select>
-      <input type="date" value="${r.dueDate||dateStr(0)}" onchange="assignRows[${i}].dueDate=this.value">
+      <input type="date" value="${r.dueDate||dateStr(0)}" oninput="assignRows[${i}].dueDate=this.value">
       <button class="btn sm red" onclick="removeRow(${i})" title="Remove">×</button>
     </div>`).join('');
   return `<div class="card"><h2>Assign Task</h2>
