@@ -233,7 +233,7 @@ function normalizeDB(){
   DB.roles.forEach(r=>{ r.name=String(r.name||''); });
   DB.dict.forEach(d=>{ d.estMin=+d.estMin||0; d.title=String(d.title||''); });
   DB.tasks.forEach(t=>{
-    t.dueDate = t.dueDate ? String(t.dueDate).slice(0,10) : '';
+    t.dueDate = normDate(t.dueDate);
     t.estMin=+t.estMin||0; t.actualMin=+t.actualMin||0;
     if(!Array.isArray(t.attachments)) t.attachments=[];
     if(!Array.isArray(t.comments)) t.comments=[];
@@ -294,7 +294,24 @@ if('serviceWorker' in navigator){
 }
 
 /* ------------------------------ helpers --------------------------------- */
-function dateStr(o){ const d=new Date(); d.setDate(d.getDate()+o); return d.toISOString().slice(0,10); }
+function dateStr(o){ const d=new Date(); d.setDate(d.getDate()+o); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+/* Convert any incoming date value (plain YYYY-MM-DD, ISO timestamp from Google
+   Sheets, or a Sheets serial number) to a local YYYY-MM-DD string without the
+   UTC day-shift that previously made due dates decrease on every reload. */
+function normDate(v){
+  if(v==null||v==='') return '';
+  const s=String(v).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if(/^\d+(\.\d+)?$/.test(s) && +s>0 && +s<100000){
+    const d=new Date(Date.UTC(1899,11,30)+(+s)*86400000);
+    const p=n=>String(n).padStart(2,'0');
+    return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate());
+  }
+  const d=new Date(s);
+  if(isNaN(d.getTime())) return s.slice(0,10);
+  const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
 function uid(p){ return p + Date.now().toString(36) + Math.floor(Math.random()*1000); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function user(id){ return DB.users.find(u=>u.id===id) || {name:'—',section:'',role:'',enroll:''}; }
