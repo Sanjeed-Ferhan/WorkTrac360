@@ -259,16 +259,17 @@ async function apiLoad(){
   return false;
 }
 function syncDot(){ return API_OK?'●':(apiUrl()?'◐':'○'); }
+function syncLabel(){ return API_OK?'Synced':(apiUrl()?'Syncing…':'Local'); }
 function openSync(){
   const u=apiUrl();
-  modal(`<h2>Backend sync — Google Sheets</h2>
-    <p class="desc">Paste your Apps Script Web App URL (ends with <b>/exec</b>). Leave blank to use this browser only.</p>
-    <div class="field"><label>Web App URL</label><input id="syncUrl" placeholder="https://script.google.com/macros/s/AKfycb.../exec" value="${esc(u)}"></div>
-    <div id="syncStatus" class="small muted">${u?(API_OK?'Connected.':'Configured — not verified yet.'):'Not configured (browser-only mode).'}</div>
+  const status=u?(API_OK?'Connected — syncing automatically.':'Connecting…'):('Not configured — browser-only mode.');
+  const dot=u?(API_OK?'<span style="color:#1E8449;font-size:18px">●</span>':'<span style="color:#E67E22;font-size:18px">◐</span>'):'<span style="color:#7F8C8D;font-size:18px">○</span>';
+  modal(`<h2>Backend sync</h2>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">${dot}<div><b>${esc(status)}</b><div class="small muted">Every change saves to Google Sheets automatically.</div></div></div>
+    <div class="field"><label>Web App URL</label><input id="syncUrl" value="${esc(u)}" placeholder="https://script.google.com/macros/s/AKfycb.../exec" onchange="updateSyncUrl()"></div>
+    <div id="syncStatus" class="small muted">Last checked: ${API_AT?new Date(API_AT).toLocaleTimeString():'never'}</div>
     <div class="row" style="margin-top:14px">
-      <button class="btn green" onclick="testSync()">Test connection</button>
-      <button class="btn" onclick="saveSync()">Save &amp; sync now</button>
-      <button class="btn ghost" onclick="clearSync()">Disconnect</button>
+      <button class="btn green" onclick="testSync()">Reconnect</button>
       <button class="btn grey" onclick="closeModal()">Close</button>
     </div>`);
 }
@@ -277,15 +278,15 @@ function readSyncInputs(){
 }
 function testSync(){
   readSyncInputs();
-  const st=document.getElementById('syncStatus'); st.textContent='Testing…';
+  const st=document.getElementById('syncStatus'); st.textContent='Reconnecting…';
   apiLoad().then(ok=>{
-    st.textContent = ok ? 'Connected — data loaded from the sheet.' : 'Could not connect. Check the URL, the token, and that the Web App is deployed with access "Anyone".';
+    st.textContent = ok ? 'Reconnected — data loaded from the sheet.' : 'Could not connect. Check the URL and that the Web App is deployed.';
     if(ok){ toast('Connected to the sheet.'); render(); }
   });
 }
-function saveSync(){
-  readSyncInputs(); closeModal();
-  apiLoad().then(ok=>{ toast(ok?'Connected to the sheet.':'Saved. Could not reach the backend yet.'); render(); });
+function updateSyncUrl(){
+  readSyncInputs();
+  apiLoad().then(ok=>{ if(ok) render(); });
 }
 function clearSync(){
   localStorage.setItem('wt360_api_url',''); localStorage.removeItem('wt360_api_token');
@@ -537,7 +538,7 @@ function shell(){
     <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
     ${canInstall?'<button class="btn ghost sm" onclick="installApp()" title="Install app">Install</button>':''}
-    <button class="btn ghost sm" onclick="openSync()" title="Backend sync">Sync ${syncDot()}</button>
+    <button class="btn ghost sm" onclick="openSync()" title="Backend sync">${syncLabel()} ${syncDot()}</button>
     <button class="btn ghost sm" onclick="logout()">Log out</button>
   </div>
   <div class="nav">${nav}</div>
