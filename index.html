@@ -110,6 +110,12 @@
   .chev{color:#8aa0b3;font-size:11px;margin-left:2px}
   table tr.task-detail>td{background:#f8fbfe;border-bottom:1px solid var(--line);padding:14px 16px}
   tr.task-detail h3{margin:10px 0 6px;font-size:13px;color:var(--navy)}
+  .date-bundle{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin-bottom:8px;cursor:pointer;font-size:13.5px}
+  .date-bundle:hover{background:#f4f9fd}
+  .date-bundle.open{background:#eef6fc;border-color:#cfe0ee;border-bottom-left-radius:0;border-bottom-right-radius:0}
+  .date-bundle .grow{flex:1}
+  .bundle{margin-bottom:14px}
+  .bundle-body table{font-size:12.5px}
   .hint{font-size:11.5px;color:var(--muted);margin-top:-4px}
   .note{background:#fff8e6;border:1px solid #f3e0b3;color:#7a5a12;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
   .ok{background:#e6f7f1;border:1px solid #b7e6d8;color:#0f7a63;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
@@ -181,7 +187,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '1.3';
+const BUILD = '1.4';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -828,34 +834,71 @@ function dashboardView(){
 }
 
 /* -------------------------------- tasks --------------------------------- */
-let expandedTask=null;
+let expandedTask=null, expandedDates=null;
 function toggleTaskDetail(id){ expandedTask = expandedTask===id ? null : id; render(); }
+function toggleDate(k){ if(!expandedDates) expandedDates=new Set(); if(expandedDates.has(k)) expandedDates.delete(k); else expandedDates.add(k); render(); }
+function fmtDateLabel(d){
+  if(!d) return 'No due date';
+  const dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+}
+function dateTag(d){
+  if(!d) return '';
+  const today=dateStr(0), tmr=dateStr(1);
+  if(d<today) return badge('Overdue','b-red');
+  if(d===today) return badge('Today','b-teal');
+  if(d===tmr) return badge('Tomorrow','b-blue');
+  return '';
+}
+function taskRowHtml(t){
+  const open=expandedTask===t.id;
+  const main=`<tr class="task-main${open?' open':''}" onclick="toggleTaskDetail('${t.id}')">
+    <td><b>${esc(t.code)}</b> <span class="chev">${open?'▾':'▸'}</span><div class="small muted">${esc(t.title)}</div></td>
+    <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
+    <td>${esc(user(t.assigneeId).name)}</td>
+    <td>${statusBadge(t.status)} ${prioBadge(t.priority)}</td>
+    <td class="small">${t.estMin}m est<br>${t.actualMin}m act</td>
+    <td style="white-space:nowrap" onclick="event.stopPropagation()">
+      <button class="btn sm ${open?'ghost':''}" onclick="toggleTaskDetail('${t.id}')">${open?'Hide':'Details'}</button>
+      ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`;
+  const detail = open ? `<tr class="task-detail"><td colspan="6">${taskPanel(t)}</td></tr>` : '';
+  return main+detail;
+}
 function tasksView(){
-  const ts=visibleTasks(current).slice().sort((a,b)=>b.updatedAt-a.updatedAt);
+  const ts=visibleTasks(current);
   const counts={}; ts.forEach(t=>counts[t.status]=(counts[t.status]||0)+1);
   const chips=['All',...STATUSES].map(s=>{ const n=s==='All'?ts.length:(counts[s]||0);
     return `<button class="btn sm ${taskFilter===s?'':'ghost'}" onclick="setFilter('${s}')">${s} (${n})</button>`; }).join(' ');
   const list=ts.filter(t=>taskFilter==='All'||t.status===taskFilter);
-  const rows=list.map(t=>{
-    const open=expandedTask===t.id;
-    const main=`<tr class="task-main${open?' open':''}" onclick="toggleTaskDetail('${t.id}')">
-      <td><b>${esc(t.code)}</b> <span class="chev">${open?'▾':'▸'}</span><div class="small muted">${esc(t.title)}</div></td>
-      <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
-      <td>${esc(user(t.assigneeId).name)}</td>
-      <td>${statusBadge(t.status)} ${prioBadge(t.priority)}</td>
-      <td class="small">${t.estMin}m est<br>${t.actualMin}m act</td>
-      <td class="small">${t.dueDate||'—'} ${isOverdue(t)?badge('Overdue','b-red'):''}</td>
-      <td style="white-space:nowrap" onclick="event.stopPropagation()">
-        <button class="btn sm ${open?'ghost':''}" onclick="toggleTaskDetail('${t.id}')">${open?'Hide':'Details'}</button>
-        ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`;
-    const detail = open ? `<tr class="task-detail"><td colspan="7">${taskPanel(t)}</td></tr>` : '';
-    return main+detail;
+  if(expandedDates===null) expandedDates=new Set([dateStr(0)]);
+  const groups={};
+  list.forEach(t=>{ const k=t.dueDate||''; (groups[k]=groups[k]||[]).push(t); });
+  const keys=Object.keys(groups).filter(k=>k).sort();
+  if(groups['']) keys.push('');
+  const bundles=keys.map(k=>{
+    const tasks=groups[k].slice().sort((a,b)=>{
+      const ai=STATUSES.indexOf(a.status), bi=STATUSES.indexOf(b.status);
+      return (ai-bi) || a.code.localeCompare(b.code);
+    });
+    const open=expandedDates.has(k);
+    const overdue=tasks.filter(isOverdue).length;
+    const done=tasks.filter(t=>t.status==='Done'||t.status==='Verified').length;
+    const head=`<div class="date-bundle${open?' open':''}" onclick="toggleDate('${k}')">
+      <span class="chev">${open?'▾':'▸'}</span>
+      <b>${esc(fmtDateLabel(k))}</b> ${dateTag(k)}
+      <span class="grow"></span>
+      <span class="small muted">${tasks.length} task${tasks.length>1?'s':''}${done?' · '+done+' done':''}${overdue?' · <span style="color:#C0392B;font-weight:700">'+overdue+' overdue</span>':''}</span>
+    </div>`;
+    if(!open) return `<div class="bundle">${head}</div>`;
+    const rows=tasks.map(taskRowHtml).join('');
+    return `<div class="bundle">${head}<div class="bundle-body">
+      <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th><th></th></tr>${rows}</table>
+    </div></div>`;
   }).join('');
   return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
-    <p class="desc">${current.type==='member'?'Tasks assigned to you. Click a task to update status.':(isSuper()?'All tasks across every department.':'All tasks in your department. Click a task to view comments and actions.')}</p>
+    <p class="desc">Tasks are bundled by due date. Click a date to see that day's tasks, then click a task to update it.${current.type==='member'?'':' Supervisors can verify or reopen inline.'}</p>
     <div style="margin-bottom:12px">${chips}</div>
-    <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th><th>Due</th><th></th></tr>
-    ${rows||'<tr><td colspan=7 class="empty">No tasks found.</td></tr>'}</table></div>`;
+    ${bundles||'<div class="empty">No tasks found.</div>'}</div>`;
 }
 function setFilter(s){ taskFilter=s; render(); }
 
