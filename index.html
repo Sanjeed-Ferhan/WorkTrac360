@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.0';
+const BUILD = '2.1';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -235,13 +235,23 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbyaYcfA1GYRXavQKhnGZLyj6IpORkqX2sRWNgsNXhRkyh8-7DFskFHsGzX4deSYMlRq/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0;
+let syncing=false, dbVersion=0, lastServerVersion=0;
+let saveTimer=null;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
 function apiToken(){ return DEFAULT_API_TOKEN; }
 function save(){
   try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
   const u=apiUrl(); if(!u) return;
-  fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB})})
-    .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); }).catch(()=>{ API_OK=false; });
+  if(syncing) return;
+  dbVersion++;
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    if(syncing) return;
+    const payload={token:apiToken(),action:'save',db:DB,sentVersion:dbVersion};
+    fetch(u,{method:'POST',body:JSON.stringify(payload)})
+      .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); lastServerVersion=dbVersion; })
+      .catch(()=>{ API_OK=false; });
+  }, 500);
 }
 /* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
    Normalise them back to the types the app expects. */
@@ -261,6 +271,13 @@ function normalizeDB(){
 }
 async function apiLoad(){
   const u=apiUrl(); if(!u) return false;
+  syncing=true;
+  clearTimeout(saveTimer);
+  /* Flush any pending local changes to the server before overwriting DB */
+  if(dbVersion > lastServerVersion){
+    fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion})})
+      .then(r=>r.json()).then(()=>{ lastServerVersion=dbVersion; }).catch(()=>{});
+  }
   try{
     const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
     const j=await r.json();
@@ -290,10 +307,11 @@ async function apiLoad(){
         }
       });
       try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
-      API_OK=true; API_AT=Date.now(); return true;
+      lastServerVersion=dbVersion;
+      API_OK=true; API_AT=Date.now(); syncing=false; return true;
     }
-    API_OK=false;
-  }catch(e){ API_OK=false; }
+    API_OK=false; syncing=false;
+  }catch(e){ API_OK=false; syncing=false; }
   return false;
 }
 /* ---- PWA: install prompt + offline service worker ---- */
