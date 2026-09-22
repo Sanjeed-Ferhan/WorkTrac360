@@ -464,7 +464,7 @@ function showRegister(){ authMode='register'; authMsg=null; render(); }
 function showSignin(){ authMode='signin'; authMsg=null; render(); }
 
 function selfRegister(){
-  const type=document.getElementById('srType').value;
+  let type=document.getElementById('srType').value;
   const name=document.getElementById('srName').value.trim();
   const enroll=document.getElementById('srEnroll').value.trim();
   const section=document.getElementById('srSection').value;
