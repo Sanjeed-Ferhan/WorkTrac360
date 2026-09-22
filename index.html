@@ -189,7 +189,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '1.6';
+const BUILD = '1.7';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -881,7 +881,7 @@ function tasksView(){
   if(expandedDates===null) expandedDates=new Set([dateStr(0)]);
   const groups={};
   list.forEach(t=>{ const k=t.dueDate||''; (groups[k]=groups[k]||[]).push(t); });
-  const keys=Object.keys(groups).filter(k=>k).sort();
+  const keys=Object.keys(groups).filter(k=>k).sort().reverse();
   if(groups['']) keys.push('');
   const bundles=keys.map(k=>{
     const tasks=groups[k].slice().sort((a,b)=>{
