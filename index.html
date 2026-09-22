@@ -247,10 +247,30 @@ async function apiLoad(){
     const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
     const j=await r.json();
     if(j&&j.ok&&j.db){
+      /* Preserve local pending users and their notifications that haven't
+         been saved to the sheet yet (race-condition safety net). */
+      const localPending=(DB.users||[]).filter(u=>u.status==='pending');
+      const localPendingIds=new Set(localPending.map(u=>u.id));
+      const localPendingNotify=(DB.notify||[]).filter(n=>localPendingIds.has(n.to));
       DB=j.db;
       if(!DB.seq) DB.seq=blankDB().seq;
       if(!DB.settings) DB.settings={dailyMinutes:480};
       normalizeDB();
+      const serverUserIds=new Set(DB.users.map(u=>u.id));
+      localPending.forEach(u=>{ if(!serverUserIds.has(u.id)) DB.users.push(u); });
+      const serverNotifyIds=new Set(DB.notify.map(n=>n.id));
+      localPendingNotify.forEach(n=>{ if(!serverNotifyIds.has(n.id)) DB.notify.push(n); });
+      /* Recover orphaned registration notifications: if a "Registration pending"
+         notification exists but the referenced user is missing, recreate them. */
+      DB.notify.forEach(n=>{
+        if(n.title!=='Registration pending') return;
+        const m=n.body.match(/^(.+?) \((\S+?)\) registered as (.+?) in (.+?)\.\s*$/);
+        if(!m) return;
+        const [,name,enroll,role,section]=m;
+        if(!DB.users.some(u=>String(u.enroll)===enroll)){
+          DB.users.push({id:uid('u'),enroll,name,section,role,type:'member',status:'pending'});
+        }
+      });
       try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
       API_OK=true; API_AT=Date.now(); return true;
     }
