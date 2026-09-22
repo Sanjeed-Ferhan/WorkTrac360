@@ -1,10 +1,14 @@
 /* WorkTrac360 service worker — offline app shell.
-   Caches the static app; never caches the Google Sheets API. */
-const CACHE = "wt360-v2";
+   v3: improved caching, offline fallback, update-on-reload. */
+const CACHE = "wt360-v3";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -17,12 +21,17 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-  if (req.method !== "GET") return;                       // never touch POST (API saves)
+  if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.hostname.indexOf("script.google.com") >= 0 ||
-      url.hostname.indexOf("googleusercontent.com") >= 0) return;  // never cache the backend
 
-  if (req.mode === "navigate") {                          // app shell: always fetch fresh, cache fallback
+  // Never cache Google Sheets API or external resources
+  if (url.hostname.indexOf("script.google.com") >= 0 ||
+      url.hostname.indexOf("googleusercontent.com") >= 0 ||
+      url.hostname.indexOf("fonts.googleapis.com") >= 0 ||
+      url.hostname.indexOf("fonts.gstatic.com") >= 0) return;
+
+  // Navigation: network-first with cache fallback
+  if (req.mode === "navigate") {
     e.respondWith(
       fetch(req, { cache: "reload" })
         .then((res) => {
@@ -34,13 +43,16 @@ self.addEventListener("fetch", (e) => {
     );
     return;
   }
-  e.respondWith(                                          // assets: cache first, then network
-    caches.match(req).then((hit) =>
-      hit || fetch(req).then((res) => {
+
+  // Assets: cache-first, then network (with background update)
+  e.respondWith(
+    caches.match(req).then((hit) => {
+      const fetchPromise = fetch(req).then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy));
         return res;
-      }).catch(() => hit)
-    )
+      }).catch(() => hit);
+      return hit || fetchPromise;
+    })
   );
 });
