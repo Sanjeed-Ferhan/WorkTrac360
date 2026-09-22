@@ -189,7 +189,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '1.7';
+const BUILD = '1.8';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -362,7 +362,7 @@ function ensureRole(sec, name){
 }
 
 let current=null, view='dashboard', taskFilter='All', authMode='signin', authMsg=null;
-let dateBasis='created', dateFrom='', dateTo='';
+let dateBasis='due', dateFrom=dateStr(0), dateTo=dateStr(0);
 let dashPeriod='month';   /* today | week | month */
 function periodRange(){
   const to=dateStr(0);
@@ -1290,7 +1290,7 @@ function reportsView(){
 
   return `
   <div class="card"><h2>Reports — ${isSuper()?'All Departments':esc(current.section)}</h2>
-    <p class="desc">Every report below follows the <b>Date basis</b> and <b>range</b> selected in the Date-wise record. Adjust it there to filter all sections and exports.</p>
+    <p class="desc">Every report below follows the <b>date range</b> (by due date) selected in the Date-wise record. Adjust it there to filter all sections and exports.</p>
     <div class="row">
       ${isSuper()?`<div class="field" style="min-width:200px"><label>Department</label>
         <select onchange="window.__repSec=this.value;render()">
@@ -1306,12 +1306,6 @@ function reportsView(){
   <div class="card"><h2>Date-wise Task &amp; Status Record</h2>
     <p class="desc">Tasks grouped by date with status counts — for trend and performance analysis.</p>
     <div class="row">
-      <div class="field" style="min-width:190px"><label>Date basis</label>
-        <select onchange="dateBasis=this.value;render()">
-          <option value="created" ${dateBasis==='created'?'selected':''}>Created date</option>
-          <option value="due" ${dateBasis==='due'?'selected':''}>Due date</option>
-          <option value="updated" ${dateBasis==='updated'?'selected':''}>Last updated</option>
-        </select></div>
       <div class="field" style="min-width:160px"><label>From</label><input type="date" value="${dateFrom}" onchange="dateFrom=this.value;render()"></div>
       <div class="field" style="min-width:160px"><label>To</label><input type="date" value="${dateTo}" onchange="dateTo=this.value;render()"></div>
       <button class="btn ghost" onclick="dateFrom='';dateTo='';render()">Clear filter</button>
@@ -1328,9 +1322,9 @@ function reportsView(){
     ${dwDetail||'<tr><td colspan=7 class="empty">No records.</td></tr>'}</table>
   </div>
 
-  <div class="card"><h2>By Status</h2><p class="desc">Within the selected date basis and range.</p><table>${head}${table(group(t=>t.status))}</table></div>
-  <div class="card"><h2>By Role</h2><p class="desc">Within the selected date basis and range.</p><table>${head}${table(group(t=>t.role))}</table></div>
-  <div class="card"><h2>By Team Member</h2><p class="desc">Within the selected date basis and range.</p><table>${head}${table(group(t=>user(t.assigneeId).name))}</table></div>`;
+  <div class="card"><h2>By Status</h2><p class="desc">Within the selected date range.</p><table>${head}${table(group(t=>t.status))}</table></div>
+  <div class="card"><h2>By Role</h2><p class="desc">Within the selected date range.</p><table>${head}${table(group(t=>t.role))}</table></div>
+  <div class="card"><h2>By Team Member</h2><p class="desc">Within the selected date range.</p><table>${head}${table(group(t=>user(t.assigneeId).name))}</table></div>`;
 }
 function exportDateWise(){
   const ts=dateWiseTasks().slice().sort((a,b)=>taskDateKey(b).localeCompare(taskDateKey(a)));
