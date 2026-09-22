@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '1.9';
+const BUILD = '2.0';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -861,8 +861,8 @@ function taskRowHtml(t){
   const open=expandedTask===t.id;
   const sup=showSupervisorColumn();
   const supCell = sup?`<td class="col-sup" onclick="event.stopPropagation()">
-      <button class="btn sm green" onclick="verifyTask('${t.id}',1)">✔ Verify</button>
-      <button class="btn sm red" onclick="verifyTask('${t.id}',0)">↺ Reopen</button></td>`:'';
+      ${t.status==='Done'?`<button class="btn sm green" onclick="verifyTask('${t.id}',1)">✔ Verify</button>
+      <button class="btn sm red" onclick="verifyTask('${t.id}',0)">↺ Reopen</button>`:'—'}</td>`:'';
   const main=`<tr class="task-main${open?' open':''}" onclick="toggleTaskDetail('${t.id}')">
     <td><b>${esc(t.code)}</b> <span class="chev">${open?'▾':'▸'}</span><div class="small muted">${esc(t.title)}</div></td>
     <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
