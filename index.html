@@ -232,7 +232,7 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 /* ---- Backend sync: Google Sheets + Apps Script ----
    Configure the Web App URL + token in the app's Sync dialog (top bar).
    With no URL set, the app runs browser-only (localStorage). */
-const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbyaYcfA1GYRXavQKhnGZLyj6IpORkqX2sRWNgsNXhRkyh8-7DFskFHsGzX4deSYMlRq/exec';
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbwYbNs6mnZRAx_RejyOwNNNERriuuIlGEUooEjX3Lqxy9YfkyEGsaWUN7PjuNKboNTu/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0;
 let syncing=false, dbVersion=0, lastServerVersion=0;
