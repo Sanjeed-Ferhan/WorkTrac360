@@ -117,6 +117,7 @@
   .bundle{margin-bottom:14px}
   .bundle-body table{font-size:12.5px}
   th.col-actions,td.col-actions{width:160px;white-space:nowrap;vertical-align:middle}
+  th.col-sup,td.col-sup{width:180px;white-space:nowrap;vertical-align:middle}
   .hint{font-size:11.5px;color:var(--muted);margin-top:-4px}
   .note{background:#fff8e6;border:1px solid #f3e0b3;color:#7a5a12;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
   .ok{background:#e6f7f1;border:1px solid #b7e6d8;color:#0f7a63;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
@@ -188,7 +189,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '1.5';
+const BUILD = '1.6';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -851,18 +852,24 @@ function dateTag(d){
   if(d===tmr) return badge('Tomorrow','b-blue');
   return '';
 }
+function showSupervisorColumn(){ return isSuper() || current.type==='supervisor'; }
 function taskRowHtml(t){
   const open=expandedTask===t.id;
+  const sup=showSupervisorColumn();
+  const supCell = sup?`<td class="col-sup" onclick="event.stopPropagation()">
+      <button class="btn sm green" onclick="verifyTask('${t.id}',1)">✔ Verify</button>
+      <button class="btn sm red" onclick="verifyTask('${t.id}',0)">↺ Reopen</button></td>`:'';
   const main=`<tr class="task-main${open?' open':''}" onclick="toggleTaskDetail('${t.id}')">
     <td><b>${esc(t.code)}</b> <span class="chev">${open?'▾':'▸'}</span><div class="small muted">${esc(t.title)}</div></td>
     <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
     <td>${esc(user(t.assigneeId).name)}</td>
     <td>${statusBadge(t.status)} ${prioBadge(t.priority)}</td>
     <td class="small">${t.estMin}m est<br>${t.actualMin}m act</td>
+    ${supCell}
     <td class="col-actions" onclick="event.stopPropagation()">
       <button class="btn sm ${open?'ghost':''}" onclick="toggleTaskDetail('${t.id}')">${open?'Hide':'Details'}</button>
       ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`;
-  const detail = open ? `<tr class="task-detail"><td colspan="6">${taskPanel(t)}</td></tr>` : '';
+  const detail = open ? `<tr class="task-detail"><td colspan="${sup?7:6}">${taskPanel(t)}</td></tr>` : '';
   return main+detail;
 }
 function tasksView(){
@@ -892,8 +899,9 @@ function tasksView(){
     </div>`;
     if(!open) return `<div class="bundle">${head}</div>`;
     const rows=tasks.map(taskRowHtml).join('');
+    const supTh = showSupervisorColumn()?`<th class="col-sup">Supervisor</th>`:'';
     return `<div class="bundle">${head}<div class="bundle-body">
-      <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th><th class="col-actions">Actions</th></tr>${rows}</table>
+      <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th>${supTh}<th class="col-actions">Actions</th></tr>${rows}</table>
     </div></div>`;
   }).join('');
   return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
