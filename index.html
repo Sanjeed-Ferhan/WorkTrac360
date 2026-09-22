@@ -104,6 +104,12 @@
   .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
   .taskrow{display:grid;grid-template-columns:1fr 90px 120px 130px 110px 34px;gap:8px;margin-bottom:8px;align-items:center}
   @media(max-width:900px){.taskrow{grid-template-columns:1fr 1fr}}
+  tr.task-main{cursor:pointer}
+  tr.task-main:hover td{background:#f4f9fd}
+  tr.task-main.open td{background:#eef6fc}
+  .chev{color:#8aa0b3;font-size:11px;margin-left:2px}
+  table tr.task-detail>td{background:#f8fbfe;border-bottom:1px solid var(--line);padding:14px 16px}
+  tr.task-detail h3{margin:10px 0 6px;font-size:13px;color:var(--navy)}
   .hint{font-size:11.5px;color:var(--muted);margin-top:-4px}
   .note{background:#fff8e6;border:1px solid #f3e0b3;color:#7a5a12;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
   .ok{background:#e6f7f1;border:1px solid #b7e6d8;color:#0f7a63;border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
@@ -822,23 +828,31 @@ function dashboardView(){
 }
 
 /* -------------------------------- tasks --------------------------------- */
+let expandedTask=null;
+function toggleTaskDetail(id){ expandedTask = expandedTask===id ? null : id; render(); }
 function tasksView(){
   const ts=visibleTasks(current).slice().sort((a,b)=>b.updatedAt-a.updatedAt);
   const counts={}; ts.forEach(t=>counts[t.status]=(counts[t.status]||0)+1);
   const chips=['All',...STATUSES].map(s=>{ const n=s==='All'?ts.length:(counts[s]||0);
     return `<button class="btn sm ${taskFilter===s?'':'ghost'}" onclick="setFilter('${s}')">${s} (${n})</button>`; }).join(' ');
   const list=ts.filter(t=>taskFilter==='All'||t.status===taskFilter);
-  const rows=list.map(t=>`<tr>
-      <td><b>${esc(t.code)}</b><div class="small muted">${esc(t.title)}</div></td>
+  const rows=list.map(t=>{
+    const open=expandedTask===t.id;
+    const main=`<tr class="task-main${open?' open':''}" onclick="toggleTaskDetail('${t.id}')">
+      <td><b>${esc(t.code)}</b> <span class="chev">${open?'▾':'▸'}</span><div class="small muted">${esc(t.title)}</div></td>
       <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
       <td>${esc(user(t.assigneeId).name)}</td>
       <td>${statusBadge(t.status)} ${prioBadge(t.priority)}</td>
       <td class="small">${t.estMin}m est<br>${t.actualMin}m act</td>
       <td class="small">${t.dueDate||'—'} ${isOverdue(t)?badge('Overdue','b-red'):''}</td>
-      <td style="white-space:nowrap"><button class="btn sm" onclick="openTask('${t.id}')">Open</button>
-        ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`).join('');
+      <td style="white-space:nowrap" onclick="event.stopPropagation()">
+        <button class="btn sm ${open?'ghost':''}" onclick="toggleTaskDetail('${t.id}')">${open?'Hide':'Details'}</button>
+        ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`;
+    const detail = open ? `<tr class="task-detail"><td colspan="7">${taskPanel(t)}</td></tr>` : '';
+    return main+detail;
+  }).join('');
   return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
-    <p class="desc">${current.type==='member'?'Tasks assigned to you. Open a task to update status.':(isSuper()?'All tasks across every department.':'All tasks in your department.')}</p>
+    <p class="desc">${current.type==='member'?'Tasks assigned to you. Click a task to update status.':(isSuper()?'All tasks across every department.':'All tasks in your department. Click a task to view comments and actions.')}</p>
     <div style="margin-bottom:12px">${chips}</div>
     <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th><th>Due</th><th></th></tr>
     ${rows||'<tr><td colspan=7 class="empty">No tasks found.</td></tr>'}</table></div>`;
@@ -1030,7 +1044,7 @@ function deleteTask(id){
   if(!confirm('Delete task '+t.code+' — '+t.title+'?')) return;
   DB.tasks=DB.tasks.filter(x=>x.id!==id);
   notify(t.assigneeId, 'Task deleted', `${current.name} deleted task ${t.code} (${t.title}).`);
-  save(); toast('Task deleted.'); closeModal(); render();
+  save(); toast('Task deleted.'); if(expandedTask===id) expandedTask=null; closeModal(); render();
 }
 function deleteTasksOf(sec){
   const list = (sec==='All') ? DB.tasks : DB.tasks.filter(t=>t.section===sec);
@@ -1452,8 +1466,7 @@ function notifyView(){
 }
 
 /* ------------------------------ task detail ----------------------------- */
-function openTask(id){
-  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+function taskPanel(t){
   const a=user(t.assigneeId), s=user(t.supervisorId);
   const isAssignee=current.id===t.assigneeId;
   const isSup = isSuper() || (current.type==='supervisor' && current.section===t.section);
@@ -1473,10 +1486,7 @@ function openTask(id){
       <button class="btn green" onclick="verifyTask('${t.id}',1)">✔ Verify as done</button>
       <button class="btn red" onclick="verifyTask('${t.id}',0)">↺ Reopen / reject</button>
     </div>`:'';
-  modal(`
-    <h2>${esc(t.code)} · ${esc(t.title)}</h2>
-    <div style="margin-bottom:10px">${statusBadge(t.status)} ${prioBadge(t.priority)} ${badge(t.section,'b-blue')} ${badge(t.role,'b-grey')} ${isOverdue(t)?badge('Overdue','b-red'):''}</div>
-    <div class="grid g2 small">
+  return `<div class="grid g2 small">
       <div><b>Assignee:</b> ${esc(a.name)} (${esc(a.enroll)})</div><div><b>Supervisor:</b> ${esc(s.name)}</div>
       <div><b>Estimated:</b> ${t.estMin} min</div><div><b>Actual:</b> ${t.actualMin} min ${t.timerStart?'· timer running':''}</div>
       <div><b>Shift:</b> ${esc(t.shift)}</div><div><b>Frequency:</b> ${esc(t.frequency)}</div>
@@ -1485,34 +1495,44 @@ function openTask(id){
     <h3>Attachments (evidence)</h3><div>${atts}</div>
     ${(isAssignee||isSup)?`<div style="margin-top:8px"><input type="file" onchange="attachFile('${t.id}',this)"></div>`:''}
     <h3>Comments</h3><div>${comments}</div>
-    <div class="row" style="margin-top:8px"><div class="field" style="flex:1;min-width:220px;margin-bottom:0"><input id="cmtText" placeholder="Write a comment…"></div>
+    <div class="row" style="margin-top:8px"><div class="field" style="flex:1;min-width:220px;margin-bottom:0"><input id="cmtText" placeholder="Write a comment…" onkeydown="if(event.key==='Enter'){event.preventDefault();addComment('${t.id}')}"></div>
       <button class="btn ghost" onclick="addComment('${t.id}')">Comment</button></div>
     ${memberPanel}${supPanel}
     ${isSup?`<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-      <button class="btn red" onclick="deleteTask('${t.id}')">🗑 Delete this task</button></div>`:''}
+      <button class="btn red" onclick="deleteTask('${t.id}')">🗑 Delete this task</button></div>`:''}`;
+}
+function afterTaskAction(id){
+  if(document.getElementById('modalBg')) openTask(id); else render();
+}
+function openTask(id){
+  const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+  modal(`
+    <h2>${esc(t.code)} · ${esc(t.title)}</h2>
+    <div style="margin-bottom:10px">${statusBadge(t.status)} ${prioBadge(t.priority)} ${badge(t.section,'b-blue')} ${badge(t.role,'b-grey')} ${isOverdue(t)?badge('Overdue','b-red'):''}</div>
+    ${taskPanel(t)}
     <div style="margin-top:16px"><button class="btn grey" onclick="closeModal()">Close</button></div>`);
 }
 function updateStatus(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
   t.status=document.getElementById('stSel').value; t.actualMin=+document.getElementById('stMin').value||0; t.updatedAt=Date.now();
   if(t.supervisorId) notify(t.supervisorId, `Task ${t.code} updated`, `${current.name} set ${t.code} (${t.title}) to "${t.status}". Actual: ${t.actualMin} min.`);
-  save(); toast('Status updated.'); closeModal(); render();
+  save(); toast('Status updated.'); afterTaskAction(id);
 }
 function toggleTimer(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
   if(t.timerStart){ const mins=Math.max(1,Math.round((Date.now()-t.timerStart)/60000)); t.actualMin=(+t.actualMin||0)+mins; t.timerStart=null; toast(`Timer stopped · +${mins} min.`); }
   else { t.timerStart=Date.now(); toast('Timer started.'); }
-  t.updatedAt=Date.now(); save(); openTask(id);
+  t.updatedAt=Date.now(); save(); afterTaskAction(id);
 }
 function attachFile(id,input){ const t=DB.tasks.find(x=>x.id===id); const f=input.files[0]; if(!f) return;
-  t.attachments.push({name:f.name,size:Math.round(f.size/1024)+' KB'}); save(); openTask(id); }
+  t.attachments.push({name:f.name,size:Math.round(f.size/1024)+' KB'}); save(); afterTaskAction(id); }
 function addComment(id){ const t=DB.tasks.find(x=>x.id===id); const txt=document.getElementById('cmtText').value.trim(); if(!txt) return;
-  t.comments.push({by:current.id,at:Date.now(),text:txt}); t.updatedAt=Date.now(); save(); openTask(id); }
+  t.comments.push({by:current.id,at:Date.now(),text:txt}); t.updatedAt=Date.now(); save(); afterTaskAction(id); }
 function verifyTask(id, ok){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
   t.status=ok?'Verified':'Reopened'; t.updatedAt=Date.now();
   notify(t.assigneeId, `Task ${t.code} ${ok?'verified':'reopened'}`, `${current.name} ${ok?'verified':'reopened'} ${t.code} (${t.title}).`);
-  save(); toast(ok?'Task verified.':'Task reopened.'); closeModal(); render();
+  save(); toast(ok?'Task verified.':'Task reopened.'); afterTaskAction(id);
 }
 function modal(html){ const bg=document.createElement('div'); bg.className='modal-bg'; bg.id='modalBg';
   bg.innerHTML=`<div class="modal">${html}</div>`; wrapTables(bg); bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
