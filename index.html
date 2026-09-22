@@ -104,6 +104,40 @@
   .nrow .t{font-weight:700;color:var(--navy)}
   .nrow .b{font-size:12.5px;color:#40515f;white-space:pre-wrap;margin-top:3px}
   .nrow .m{font-size:11px;color:var(--muted);margin-top:5px}
+
+  /* ---------------- Mobile / responsive ---------------- */
+  .tw{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .nav{-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .nav::-webkit-scrollbar{display:none}
+  @media(max-width:900px){
+    .taskrow > input:first-child{grid-column:1 / -1}
+    .taskrow > button{justify-self:start}
+  }
+  @media(max-width:760px){
+    .wrap{padding:14px 12px}
+    .card{padding:14px;border-radius:10px}
+    .card h2{font-size:15px}
+    .topbar{padding:10px 12px;gap:8px}
+    .topbar .brand small{display:none}
+    .who .nm small{font-size:10px}
+    .nav button{padding:11px 12px;font-size:13px}
+    .modal{padding:16px}
+    .modal h2{font-size:16px}
+    .kpi .v{font-size:22px}
+    .kpi2 .n{font-size:24px}
+    .field[style*="min-width"]{min-width:0 !important}
+    input,select,textarea{font-size:16px}
+  }
+  @media(max-width:560px){
+    .wrap{padding:12px 10px}
+    .topbar .brand .mk{width:26px;height:26px;font-size:11px}
+    .avatar{width:30px;height:30px;font-size:12px}
+    .who .nm{font-size:12px}
+    .g2,.g3,.g4{grid-template-columns:1fr}
+    .stats{gap:10px}
+    .taskrow.small{display:none}
+    .modal{padding:14px}
+  }
 </style>
 </head>
 <body>
@@ -306,6 +340,16 @@ function render(){
     return;
   }
   app.innerHTML = shell();
+  wrapTables(app);
+}
+/* Let wide data tables scroll horizontally inside their card on small screens. */
+function wrapTables(root){
+  if(!root) return;
+  root.querySelectorAll('table').forEach(t=>{
+    if(t.parentElement && t.parentElement.classList.contains('tw')) return;
+    const d=document.createElement('div'); d.className='tw';
+    t.parentNode.insertBefore(d,t); d.appendChild(t);
+  });
 }
 
 /* --------------------------------- auth --------------------------------- */
@@ -1439,7 +1483,7 @@ function verifyTask(id, ok){
   save(); toast(ok?'Task verified.':'Task reopened.'); closeModal(); render();
 }
 function modal(html){ const bg=document.createElement('div'); bg.className='modal-bg'; bg.id='modalBg';
-  bg.innerHTML=`<div class="modal">${html}</div>`; bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
+  bg.innerHTML=`<div class="modal">${html}</div>`; wrapTables(bg); bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
 function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remove(); }
 
 try{ localStorage.removeItem('wt360_api_token'); }catch(e){}
