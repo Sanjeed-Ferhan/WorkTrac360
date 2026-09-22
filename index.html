@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ACCL · WorkTrac360</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1F4E78">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WorkTrac360">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <style>
   :root{
     --navy:#1F4E78; --navy2:#2E6DA4; --blue:#2E86C1; --teal:#17A589; --orange:#E67E22;
@@ -283,6 +291,19 @@ function clearSync(){
   API_OK=false; closeModal(); toast('Disconnected. Using this browser only.'); render();
 }
 
+/* ---- PWA: install prompt + offline service worker ---- */
+let canInstall=false, deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; canInstall=true; if(current) render(); });
+window.addEventListener('appinstalled',()=>{ canInstall=false; deferredPrompt=null; toast('WorkTrac360 added to your device.'); if(current) render(); });
+function installApp(){
+  if(!deferredPrompt){ toast('Open your browser menu and choose "Add to Home screen".'); return; }
+  deferredPrompt.prompt();
+  if(deferredPrompt.userChoice) deferredPrompt.userChoice.finally(()=>{ deferredPrompt=null; canInstall=false; if(current) render(); });
+}
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+
 /* ------------------------------ helpers --------------------------------- */
 function dateStr(o){ const d=new Date(); d.setDate(d.getDate()+o); return d.toISOString().slice(0,10); }
 function uid(p){ return p + Date.now().toString(36) + Math.floor(Math.random()*1000); }
@@ -506,6 +527,7 @@ function shell(){
     <div class="spacer"></div>
     <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
+    ${canInstall?'<button class="btn ghost sm" onclick="installApp()" title="Install app">Install</button>':''}
     <button class="btn ghost sm" onclick="openSync()" title="Backend sync">Sync ${syncDot()}</button>
     <button class="btn ghost sm" onclick="logout()">Log out</button>
   </div>
