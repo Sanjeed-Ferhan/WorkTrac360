@@ -1,6 +1,6 @@
 /* WorkTrac360 service worker — offline app shell.
    Caches the static app; never caches the Google Sheets API. */
-const CACHE = "wt360-v1";
+const CACHE = "wt360-v2";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {
@@ -22,8 +22,16 @@ self.addEventListener("fetch", (e) => {
   if (url.hostname.indexOf("script.google.com") >= 0 ||
       url.hostname.indexOf("googleusercontent.com") >= 0) return;  // never cache the backend
 
-  if (req.mode === "navigate") {                          // app shell: network first, cache fallback
-    e.respondWith(fetch(req).catch(() => caches.match("./index.html")));
+  if (req.mode === "navigate") {                          // app shell: always fetch fresh, cache fallback
+    e.respondWith(
+      fetch(req, { cache: "reload" })
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put("./index.html", copy));
+          return res;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
     return;
   }
   e.respondWith(                                          // assets: cache first, then network

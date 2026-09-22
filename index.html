@@ -175,6 +175,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
+const BUILD = '1.3';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -302,6 +303,8 @@ function installApp(){
 }
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  let swReloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(swReloaded) return; swReloaded=true; location.reload(); });
 }
 
 /* ------------------------------ helpers --------------------------------- */
@@ -386,6 +389,7 @@ function loginView(){
     <button class="btn" style="width:100%" onclick="loginByInput()">Sign in</button>
     <p style="margin:14px 0 0;font-size:13px">New user? <span class="link" onclick="showRegister()">Register here</span></p>
     <p style="margin:8px 0 0;font-size:12.5px"><span class="link" onclick="openSync()">Backend sync (Google Sheets)</span></p>
+    <p style="margin:10px 0 0;font-size:11px;color:var(--muted)">WorkTrac360 build ${BUILD}</p>
   </div></div>`;
 }
 function registerView(){
@@ -408,6 +412,7 @@ function registerView(){
     </div>
     <div class="field"><label>Role / Designation <span class="muted" style="font-weight:400">— type your own</span></label>
       <input id="srRole" placeholder="e.g. Line Operator"></div>
+    <div id="srErr" class="note" style="display:none;margin:0 0 10px"></div>
     <button class="btn" style="width:100%" onclick="selfRegister()">Submit registration</button>
     <p style="margin:12px 0 0;font-size:13px"><span class="link" onclick="showSignin()">← Back to sign in</span></p>
     <p style="margin:8px 0 0;font-size:12.5px"><span class="link" onclick="showSuperAdmin()">Super Admin access</span></p>
@@ -469,8 +474,12 @@ function selfRegister(){
   const enroll=document.getElementById('srEnroll').value.trim();
   const section=document.getElementById('srSection').value;
   const role=document.getElementById('srRole').value.trim();
-  if(!name||!enroll||!role){ toast('Please fill name, enroll and role.'); return; }
-  if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ toast('This enroll ID is already registered.'); return; }
+  const errEl=document.getElementById('srErr');
+  const fail=(m)=>{ if(errEl){ errEl.textContent=m; errEl.style.display='block'; } toast(m); return; };
+  if(!name) return fail('Please enter your full name.');
+  if(!enroll) return fail('Please enter your Enroll ID.');
+  if(!role) return fail('Please enter your Role / Designation (e.g. Line Operator).');
+  if(DB.users.some(u=>String(u.enroll).toLowerCase()===enroll.toLowerCase())) return fail('This Enroll ID is already registered. Try signing in instead.');
   ensureRole(section, role);
 
   /* public registration can only create Team Member or Supervisor */
