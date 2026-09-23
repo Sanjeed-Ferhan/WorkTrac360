@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.8';
+const BUILD = '2.9';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -677,17 +677,21 @@ function logout(){ current=null; authMode='signin'; authMsg=null; render(); }
 /* --------------------------------- shell -------------------------------- */
 function shell(){
   const tabs=[['dashboard','Dashboard'],['tasks','Tasks']];
-  if(current.type!=='member'){ tabs.push(['assign','Assign Task']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
+  if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
   if(isSuper()) tabs.push(['departments','Departments']);
   tabs.push(['notify','Notifications']);
+  const myOpen=DB.tasks.filter(t=>t.assigneeId===current.id && t.status!=='Done' && t.status!=='Verified').length;
   const nav=tabs.map(([k,l])=>{
-    const c = (k==='notify' && unread()) ? `<span class="cnt">${unread()}</span>` : '';
+    let c='';
+    if(k==='notify' && unread()) c=`<span class="cnt">${unread()}</span>`;
+    if(k==='mytasks' && myOpen) c=`<span class="cnt">${myOpen}</span>`;
     return `<button class="${view===k?'active':''}" onclick="go('${k}')">${l}${c}</button>`;
   }).join('');
   let body='';
   switch(view){
     case 'dashboard': body=dashboardView(); break;
     case 'tasks': body=tasksView(); break;
+    case 'mytasks': body=myTasksView(); break;
     case 'assign': body=assignView(); break;
     case 'team': body=teamView(); break;
     case 'dictionary': body=dictView(); break;
@@ -1024,18 +1028,19 @@ function taskRowHtml(t){
   const detail = open ? `<tr class="task-detail"><td colspan="${sup?7:6}">${taskPanel(t)}</td></tr>` : '';
   return main+detail;
 }
-function tasksView(){
-  const ts=visibleTasks(current);
+function statusChips(ts){
   const counts={}; ts.forEach(t=>counts[t.status]=(counts[t.status]||0)+1);
-  const chips=['All',...STATUSES].map(s=>{ const n=s==='All'?ts.length:(counts[s]||0);
+  return ['All',...STATUSES].map(s=>{ const n=s==='All'?ts.length:(counts[s]||0);
     return `<button class="btn sm ${taskFilter===s?'':'ghost'}" onclick="setFilter('${s}')">${s} (${n})</button>`; }).join(' ');
-  const list=ts.filter(t=>taskFilter==='All'||t.status===taskFilter);
+}
+function filteredTasks(ts){ return ts.filter(t=>taskFilter==='All'||t.status===taskFilter); }
+function taskListHtml(list){
   if(expandedDates===null) expandedDates=new Set([dateStr(0)]);
   const groups={};
   list.forEach(t=>{ const k=t.dueDate||''; (groups[k]=groups[k]||[]).push(t); });
   const keys=Object.keys(groups).filter(k=>k).sort().reverse();
   if(groups['']) keys.push('');
-  const bundles=keys.map(k=>{
+  return keys.map(k=>{
     const tasks=groups[k].slice().sort((a,b)=>{
       const ai=STATUSES.indexOf(a.status), bi=STATUSES.indexOf(b.status);
       return (ai-bi) || a.code.localeCompare(b.code);
@@ -1056,10 +1061,20 @@ function tasksView(){
       <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th>${supTh}<th class="col-actions">Actions</th></tr>${rows}</table>
     </div></div>`;
   }).join('');
+}
+function tasksView(){
+  const ts=visibleTasks(current);
   return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
     <p class="desc">Tasks are bundled by due date. Click a date to see that day's tasks, then click a task to update it.${current.type==='member'?'':' Supervisors can verify or reopen inline.'}</p>
-    <div style="margin-bottom:12px">${chips}</div>
-    ${bundles||'<div class="empty">No tasks found.</div>'}</div>`;
+    <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks found.</div>'}</div>`;
+}
+function myTasksView(){
+  const ts=DB.tasks.filter(t=>t.assigneeId===current.id);
+  return `<div class="card"><h2>My Tasks</h2>
+    <p class="desc">Tasks assigned to you${current.type==='supervisor'?' (as well as your department tasks under "Tasks")':''}. Update your status, log time, and add comments here.</p>
+    <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks assigned to you yet.</div>'}</div>`;
 }
 function setFilter(s){ taskFilter=s; render(); }
 
