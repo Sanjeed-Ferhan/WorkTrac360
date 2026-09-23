@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.5';
+const BUILD = '2.6';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -234,10 +234,10 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 /* ---- Backend sync: Google Sheets + Apps Script ----
    Configure the Web App URL + token in the app's Sync dialog (top bar).
    With no URL set, the app runs browser-only (localStorage). */
-const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbwYbNs6mnZRAx_RejyOwNNNERriuuIlGEUooEjX3Lqxy9YfkyEGsaWUN7PjuNKboNTu/exec';
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbw8BTxLpYtQ2ePzO_CXAAAu_0YQcsu7LiPV9g9rhJNdB4t3gNPHNDhZV2eONCTllpmV/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0;
-let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false;
+let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0;
 let saveTimer=null;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
 function apiToken(){ return DEFAULT_API_TOKEN; }
@@ -321,6 +321,13 @@ async function apiLoad(){
       const localPending=(DB.users||[]).filter(u=>u.status==='pending');
       const localPendingIds=new Set(localPending.map(u=>u.id));
       const localPendingNotify=(DB.notify||[]).filter(n=>localPendingIds.has(n.to));
+      localBackup();
+      /* If the sheet lost its tasks but we still hold them locally, keep a
+         recovery copy and offer to restore (never overwrite silently). */
+      if(srv('tasks').length===0 && (DB.tasks||[]).length>0 && srv('users').length>0){
+        try{ localStorage.setItem('wt360_orphan_tasks', JSON.stringify(DB.tasks)); }catch(e){}
+        orphanTaskCount=(DB.tasks||[]).length;
+      }
       DB=j.db;
       if(!DB.seq) DB.seq=blankDB().seq;
       if(!DB.settings) DB.settings={dailyMinutes:480};
@@ -386,6 +393,52 @@ function scheduleSyncLoop(){
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden && current && apiUrl()) smartSync(); });
 window.addEventListener('focus',()=>{ if(current && apiUrl()) smartSync(); });
 window.addEventListener('online',()=>{ if(current && apiUrl()) smartSync(); });
+
+/* ---- Device backups + recovery (defence against sheet data loss) ---- */
+function localBackup(){
+  try{
+    if(isBlankDB()) return;
+    const blob=JSON.stringify({at:Date.now(),users:DB.users,tasks:DB.tasks,roles:DB.roles,dict:DB.dict,notify:DB.notify,settings:DB.settings,seq:DB.seq});
+    if(blob.length>3000000) return;
+    for(let k=3;k>1;k--){ const p=localStorage.getItem('wt360_bk'+(k-1)); if(p) localStorage.setItem('wt360_bk'+k,p); }
+    localStorage.setItem('wt360_bk1',blob);
+  }catch(e){}
+}
+function localBackups(){
+  const out=[];
+  for(let k=1;k<=3;k++){ try{ const raw=localStorage.getItem('wt360_bk'+k); if(raw){ const o=JSON.parse(raw); out.push({k,at:o.at,users:(o.users||[]).length,tasks:(o.tasks||[]).length}); } }catch(e){} }
+  return out;
+}
+function restoreLocalBackup(k){
+  let o=null;
+  try{ const raw=localStorage.getItem('wt360_bk'+k); if(!raw){ toast('Backup not found.'); return; } o=JSON.parse(raw); }catch(e){ toast('Backup unreadable.'); return; }
+  if(!confirm('Restore this device backup?\n\nSaved: '+new Date(o.at).toLocaleString()+'\nTasks: '+(o.tasks||[]).length+'   Users: '+(o.users||[]).length+'\n\nThis replaces the current data.')) return;
+  const curRev=(DB.seq&&DB.seq.rev)||0;
+  DB.users=o.users||[]; DB.tasks=o.tasks||[]; DB.roles=o.roles||[]; DB.dict=o.dict||[]; DB.notify=o.notify||[];
+  if(o.settings) DB.settings=o.settings;
+  DB.seq=Object.assign(blankDB().seq,(o.seq||{})); DB.seq.rev=curRev;
+  closeModal(); save(); render(); toast('Restored from device backup.');
+}
+function restoreOrphanTasks(){
+  try{
+    const raw=localStorage.getItem('wt360_orphan_tasks'); if(!raw){ toast('No local tasks found.'); return; }
+    const list=JSON.parse(raw); if(!Array.isArray(list)||!list.length){ toast('No local tasks found.'); return; }
+    if(!confirm('Recover '+list.length+' task(s) found on this device back into the system?')) return;
+    const have=new Set(DB.tasks.map(t=>t.id));
+    let added=0; list.forEach(t=>{ if(!have.has(t.id)){ DB.tasks.push(t); added++; } });
+    localStorage.removeItem('wt360_orphan_tasks'); orphanTaskCount=0;
+    save(); render(); toast(added+' task(s) recovered.');
+  }catch(e){ toast('Recovery failed.'); }
+}
+function openRestore(){
+  const bs=localBackups();
+  const rows=bs.length?bs.map(b=>`<tr><td>${new Date(b.at).toLocaleString()}</td><td>${b.tasks}</td><td>${b.users}</td><td><button class="btn sm" onclick="restoreLocalBackup(${b.k})">Restore</button></td></tr>`).join(''):'<tr><td colspan="4" style="color:var(--muted)">No device backups yet.</td></tr>';
+  const orphan=orphanTaskCount?`<p style="margin:10px 0"><b>${orphanTaskCount} task(s)</b> found on this device but missing from the server. <button class="btn sm green" onclick="restoreOrphanTasks()">Recover tasks</button></p>`:'';
+  modal(`<h3>Restore data</h3>${orphan}
+    <p style="color:var(--muted);font-size:12px">Automatic snapshots saved on this device before each sync.</p>
+    <table><thead><tr><th>Saved</th><th>Tasks</th><th>Users</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:12px"><button class="btn ghost" onclick="closeModal()">Close</button></div>`);
+}
 /* ---- PWA: install prompt + offline service worker ---- */
 let canInstall=false, deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; canInstall=true; if(current) render(); });
@@ -648,6 +701,7 @@ function shell(){
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
     ${canInstall?'<button class="btn ghost sm" onclick="installApp()" title="Install app">Install</button>':''}
     <button class="btn ghost sm" onclick="manualSync()" title="Sync now">⟳ Sync</button>
+    <button class="btn ghost sm" onclick="openRestore()" title="Restore data">Restore</button>
     <button class="btn ghost sm" onclick="logout()">Log out</button>
   </div>
   <div class="nav">${nav}</div>
