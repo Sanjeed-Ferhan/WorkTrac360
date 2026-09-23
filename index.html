@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.4';
+const BUILD = '3.5';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -260,12 +260,13 @@ function tombstone(id){ if(!id) return; if(!Array.isArray(DB.tomb)) DB.tomb=[];
   if(!DB.tomb.some(x=>x.id===id)) DB.tomb.push({id:id, at:Date.now()}); }
 function tombstoneAll(ids){ (ids||[]).forEach(tombstone); }
 /* ---- merge-safe save: never send a copy that could drop another device's data ---- */
-function mergeList(serverArr, localArr){
+function mergeList(serverArr, localArr, preferLocal){
   const map={};
   (serverArr||[]).forEach(r=>{ if(r&&r.id!=null&&r.id!=='') map[r.id]=r; });
   (localArr||[]).forEach(r=>{ if(!r||r.id==null||r.id==='') return; const cur=map[r.id];
     if(!cur){ map[r.id]=r; return; } const cu=+cur.updatedAt||0, iu=+r.updatedAt||0;
-    if(iu>=cu) map[r.id]=r; /* newer edit wins; ties favour local */
+    if(iu>cu){ map[r.id]=r; }                 /* strictly newer edit wins */
+    else if(iu===cu && preferLocal!==false){ map[r.id]=r; } /* tie: local (save) or server (load) */
   });
   return Object.keys(map).map(k=>map[k]);
 }
@@ -307,7 +308,9 @@ async function syncSave(){
     /* 1) pull the latest server copy and merge it in (no data loss) */
     const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
     const j=await r.json();
-    if(j&&j.ok&&j.db) mergeRemote(j.db);
+    /* Without a readable server copy we cannot merge safely — never post blind. */
+    if(!(j&&j.ok&&j.db)){ API_OK=false; API_ERR='sheet unreadable - save skipped'; saving=false; return; }
+    mergeRemote(j.db);
     if(isBlankDB()){ saving=false; return; }
     /* 2) write the merged superset */
     const pr=await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0})});
@@ -376,6 +379,7 @@ async function apiLoad(){
       const localPendingNotify=(DB.notify||[]).filter(n=>localPendingIds.has(n.to));
       localBackup();
       const localTomb=(DB.tomb||[]).slice();
+      const localRef=DB;   /* keep our copy so the sync below can't drop tasks */
       /* If the sheet lost its tasks but we still hold them locally, keep a
          recovery copy and offer to restore (never overwrite silently). */
       if(srv('tasks').length===0 && (DB.tasks||[]).length>0 && srv('users').length>0){
@@ -387,6 +391,13 @@ async function apiLoad(){
       if(!DB.settings) DB.settings={dailyMinutes:480};
       if(!Array.isArray(DB.tomb)) DB.tomb=[];
       normalizeDB();
+      /* UNION — the sync-time wipe fix. Never drop a record this device still
+         holds but the server copy lacks (tasks not yet flushed, or the sheet
+         was wiped by an old client). Deletions still apply via tombstones. */
+      ['users','roles','dict','tasks','notify'].forEach(n=>{
+        DB[n]=mergeList(DB[n], localRef[n]||[], false);
+      });
+      DB.settings=Object.assign({}, localRef.settings||{}, DB.settings||{});
       const serverUserIds=new Set(DB.users.map(u=>u.id));
       localPending.forEach(u=>{ if(!serverUserIds.has(u.id)) DB.users.push(u); });
       const serverNotifyIds=new Set(DB.notify.map(n=>n.id));
