@@ -178,7 +178,7 @@
    ========================================================================= */
 
 const SECTIONS = ["Production","Packer","Quality","Inventory","HR & Admin","Mechanical","Electrical",
-  "Power Plant","Distribution","Sustainability","OPEX","Civil","Finance"];
+  "Power Plant","Distribution","Sustainability","OPEX","Civil","Finance","Central Team"];
 
 const STATUSES = ["Not Started","In Progress","Need Support","Blocked","Done","Verified","Reopened"];
 const MEMBER_STATUSES = ["Not Started","In Progress","Need Support","Blocked","Done"];
@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.1';
+const BUILD = '2.2';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -213,13 +213,15 @@ const ROLE_HINTS = {
   "Sustainability":["Sustainability Officer"],
   "OPEX":["OPEX Officer","Data Analyst"],
   "Civil":["Civil Technician"],
-  "Finance":["Accountant","Finance Officer"]
+  "Finance":["Accountant","Finance Officer"],
+  "Central Team":["Team Lead","Executive","Assistant"]
 };
 const SUPERVISOR_HINT = {
   "Production":"Shift Incharge","Packer":"Bagging Incharge","Quality":"QC Incharge",
   "Inventory":"Store Incharge","HR & Admin":"HR Incharge","Mechanical":"Maintenance Incharge",
   "Electrical":"Electrical Incharge","Power Plant":"Power Plant Incharge","Distribution":"Dispatch Incharge",
-  "Sustainability":"Sustainability Incharge","OPEX":"OPEX Incharge","Civil":"Civil Incharge","Finance":"Finance Incharge"
+  "Sustainability":"Sustainability Incharge","OPEX":"OPEX Incharge","Civil":"Civil Incharge","Finance":"Finance Incharge",
+  "Central Team":"Team Lead"
 };
 
 /* ------------------------------- state ---------------------------------- */
