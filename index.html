@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.9';
+const BUILD = '3.0';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -237,7 +237,7 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbw8BTxLpYtQ2ePzO_CXAAAu_0YQcsu7LiPV9g9rhJNdB4t3gNPHNDhZV2eONCTllpmV/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0, API_ERR='';
-let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0;
+let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0, lastSheetTs=0;
 let saveTimer=null;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
 function apiToken(){ return DEFAULT_API_TOKEN; }
@@ -262,7 +262,7 @@ function pushNow(){
   fetch(u,{method:'POST',body:JSON.stringify(payload)})
     .then(r=>r.json()).then(j=>{
       API_OK=!!(j&&j.ok); API_AT=Date.now();
-      if(j&&j.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=j.rev; API_ERR=''; }
+      if(j&&j.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=j.rev; if(typeof j.ts==='number') lastSheetTs=j.ts; API_ERR=''; }
       else if(j&&j.error==='stale'){
         /* Another tab/device saved first — reload instead of overwriting.
            Skip the flush so our outdated copy can't clobber their newer save. */
@@ -300,7 +300,7 @@ async function apiLoad(){
     try{
       const fr=await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0})});
       const fj=await fr.json();
-      if(fj&&fj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=fj.rev; }
+      if(fj&&fj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=fj.rev; if(typeof fj.ts==='number') lastSheetTs=fj.ts; }
       else if(fj&&fj.error==='stale'){ DB.seq=DB.seq||{}; DB.seq.rev=fj.rev||0; skipFlush=true; }
     }catch(e){}
   }
@@ -350,6 +350,7 @@ async function apiLoad(){
       });
       try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
       lastServerVersion=dbVersion;
+      if(typeof j.ts==='number') lastSheetTs=j.ts;
       API_OK=true; API_AT=Date.now(); syncing=false; return true;
     }
     API_ERR=(j&&j.error)?j.error:'unexpected server response';
@@ -367,13 +368,17 @@ function busyInput(){
 async function smartSync(){
   const u=apiUrl(); if(!u || syncing) return false;
   if(busyInput()) return false;
-  let srvRev=null;
+  let srvRev=null, srvTs=null;
   try{
     const r=await fetch(u+'?action=ping&token='+encodeURIComponent(apiToken()));
     const j=await r.json();
     if(j&&j.ok && typeof j.rev==='number') srvRev=j.rev;
+    if(j&&j.ok && typeof j.ts==='number') srvTs=j.ts;
   }catch(e){}
-  if(srvRev!==null && srvRev===+((DB.seq&&DB.seq.rev)||0)) return false; /* already current */
+  const revChanged = srvRev!==null && srvRev!==+((DB.seq&&DB.seq.rev)||0);
+  /* A manual edit in the Google Sheet bumps the Drive timestamp (rev unchanged). */
+  const tsChanged = srvTs!==null && srvTs>0 && srvTs!==lastSheetTs;
+  if(!revChanged && !tsChanged) return false; /* already current */
   const ok=await apiLoad();
   if(ok) render();
   return ok;
