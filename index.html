@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.3';
+const BUILD = '3.4';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -248,7 +248,7 @@ function save(){
   if(isBlankDB()) return;
   dbVersion++;
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(pushNow, 180);
+  saveTimer=setTimeout(syncSave, 180);
 }
 /* A blank/empty DB must never reach the sheet — it would wipe everything.
    Legitimate state always has at least one user (the superadmin). */
@@ -259,25 +259,65 @@ function isBlankDB(){
 function tombstone(id){ if(!id) return; if(!Array.isArray(DB.tomb)) DB.tomb=[];
   if(!DB.tomb.some(x=>x.id===id)) DB.tomb.push({id:id, at:Date.now()}); }
 function tombstoneAll(ids){ (ids||[]).forEach(tombstone); }
-function pushNow(){
-  const u=apiUrl(); if(!u) return;
-  if(syncing || isBlankDB()) return;
-  const payload={token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0};
-  fetch(u,{method:'POST',body:JSON.stringify(payload)})
-    .then(r=>r.json()).then(j=>{
-      API_OK=!!(j&&j.ok); API_AT=Date.now();
-      if(j&&j.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=j.rev; if(typeof j.ts==='number') lastSheetTs=j.ts; API_ERR=''; }
-      else if(j&&j.error==='stale'){
-        /* Another tab/device saved first — reload instead of overwriting.
-           Skip the flush so our outdated copy can't clobber their newer save. */
-        DB.seq=DB.seq||{}; DB.seq.rev=j.rev||0;
-        skipFlush=true;
-        apiLoad().then(ok=>{ if(ok){ render(); toast('Data re-synced from the latest save.'); } });
-      }
-      else { API_ERR=(j&&j.error)?j.error:'save failed'; }
-    })
-    .catch(e=>{ API_ERR=String((e&&e.message)||e); API_OK=false; });
+/* ---- merge-safe save: never send a copy that could drop another device's data ---- */
+function mergeList(serverArr, localArr){
+  const map={};
+  (serverArr||[]).forEach(r=>{ if(r&&r.id!=null&&r.id!=='') map[r.id]=r; });
+  (localArr||[]).forEach(r=>{ if(!r||r.id==null||r.id==='') return; const cur=map[r.id];
+    if(!cur){ map[r.id]=r; return; } const cu=+cur.updatedAt||0, iu=+r.updatedAt||0;
+    if(iu>=cu) map[r.id]=r; /* newer edit wins; ties favour local */
+  });
+  return Object.keys(map).map(k=>map[k]);
 }
+function tombIdSet(extra){
+  const ids=new Set();
+  (DB.tomb||[]).forEach(t=>{ if(t&&t.id) ids.add(String(t.id)); });
+  try{ if(DB.settings&&DB.settings.tomb){ JSON.parse(DB.settings.tomb).forEach(id=>ids.add(String(id))); } }catch(e){}
+  if(Array.isArray(extra)) extra.forEach(t=>{ if(t&&t.id) ids.add(String(t.id)); });
+  return ids;
+}
+/* Merge the server's current DB into the local one so a save is always a
+   superset of everything on the server (minus explicit deletions). This makes
+   it impossible for one device to erase tasks created on another. */
+function mergeRemote(server){
+  if(!server) return;
+  const tomb=new Set();
+  (DB.tomb||[]).forEach(t=>{ if(t&&t.id) tomb.add(String(t.id)); });
+  (server.tomb||[]).forEach(t=>{ if(t&&t.id) tomb.add(String(t.id)); });
+  try{ if(server.settings&&server.settings.tomb){ JSON.parse(server.settings.tomb).forEach(id=>tomb.add(String(id))); } }catch(e){}
+  const cols=['users','roles','dict','tasks','notify'];
+  const out={};
+  cols.forEach(n=>{ out[n]=mergeList(server[n], DB[n]).filter(r=>!tomb.has(String(r.id))); });
+  out.settings=Object.assign({}, server.settings||{}, DB.settings||{});
+  out.tomb=Array.from(tomb).map(id=>({id:id, at:0}));
+  out.settings.tomb=JSON.stringify(Array.from(tomb));
+  const seq={}, keys={};
+  Object.keys(server.seq||{}).forEach(k=>keys[k]=1);
+  Object.keys(DB.seq||{}).forEach(k=>keys[k]=1);
+  Object.keys(keys).forEach(k=>{ seq[k]=Math.max(+server.seq[k]||0, +DB.seq[k]||0); });
+  out.seq=seq;
+  DB=out;
+}
+let saving=false;
+async function syncSave(){
+  const u=apiUrl(); if(!u || saving) return;
+  if(isBlankDB()) return;
+  saving=true;
+  try{
+    /* 1) pull the latest server copy and merge it in (no data loss) */
+    const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
+    const j=await r.json();
+    if(j&&j.ok&&j.db) mergeRemote(j.db);
+    if(isBlankDB()){ saving=false; return; }
+    /* 2) write the merged superset */
+    const pr=await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0})});
+    const pj=await pr.json();
+    if(pj&&pj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=pj.rev; if(typeof pj.ts==='number') lastSheetTs=pj.ts; API_OK=true; API_AT=Date.now(); API_ERR=''; }
+    else { API_OK=false; API_ERR=(pj&&pj.error)||'save failed'; }
+  }catch(e){ API_OK=false; API_ERR=String((e&&e.message)||e); }
+  saving=false;
+}
+function pushNow(){ syncSave(); }
 /* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
    Normalise them back to the types the app expects. */
 function normalizeDB(){
@@ -293,6 +333,18 @@ function normalizeDB(){
     if(t.timerStart===undefined) t.timerStart=null;
   });
   DB.notify.forEach(n=>{ n.read=!!n.read; });
+  applyTombs();
+}
+/* Tombstones live in DB.tomb and in settings.tomb (so they survive on the
+   old overwrite backend too). Drop any record whose id is tombstoned. */
+function applyTombs(){
+  const ids=new Set();
+  (DB.tomb||[]).forEach(t=>{ if(t&&t.id) ids.add(String(t.id)); });
+  try{ if(DB.settings&&DB.settings.tomb){ JSON.parse(DB.settings.tomb).forEach(id=>ids.add(String(id))); } }catch(e){}
+  if(!ids.size) return;
+  ['users','roles','dict','tasks','notify'].forEach(k=>{ DB[k]=(DB[k]||[]).filter(r=>!ids.has(String(r.id))); });
+  ids.forEach(id=>{ if(!(DB.tomb||[]).some(t=>t.id===id)) DB.tomb.push({id:id, at:0}); });
+  DB.settings=DB.settings||{}; DB.settings.tomb=JSON.stringify(Array.from(ids));
 }
 async function apiLoad(){
   const u=apiUrl(); if(!u) return false;
@@ -301,12 +353,8 @@ async function apiLoad(){
   /* Flush pending local changes BEFORE loading, and wait for it to finish
      so a stale/blank payload can never land after fresh data. */
   if(!skipFlush && dbVersion > lastServerVersion && !isBlankDB()){
-    try{
-      const fr=await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0})});
-      const fj=await fr.json();
-      if(fj&&fj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=fj.rev; if(typeof fj.ts==='number') lastSheetTs=fj.ts; }
-      else if(fj&&fj.error==='stale'){ DB.seq=DB.seq||{}; DB.seq.rev=fj.rev||0; skipFlush=true; }
-    }catch(e){}
+    skipFlush=true;
+    await syncSave();  /* merge-save, never a blind overwrite */
   }
   skipFlush=false;
   try{
@@ -327,6 +375,7 @@ async function apiLoad(){
       const localPendingIds=new Set(localPending.map(u=>u.id));
       const localPendingNotify=(DB.notify||[]).filter(n=>localPendingIds.has(n.to));
       localBackup();
+      const localTomb=(DB.tomb||[]).slice();
       /* If the sheet lost its tasks but we still hold them locally, keep a
          recovery copy and offer to restore (never overwrite silently). */
       if(srv('tasks').length===0 && (DB.tasks||[]).length>0 && srv('users').length>0){
@@ -336,11 +385,16 @@ async function apiLoad(){
       DB=j.db;
       if(!DB.seq) DB.seq=blankDB().seq;
       if(!DB.settings) DB.settings={dailyMinutes:480};
+      if(!Array.isArray(DB.tomb)) DB.tomb=[];
       normalizeDB();
       const serverUserIds=new Set(DB.users.map(u=>u.id));
       localPending.forEach(u=>{ if(!serverUserIds.has(u.id)) DB.users.push(u); });
       const serverNotifyIds=new Set(DB.notify.map(n=>n.id));
       localPendingNotify.forEach(n=>{ if(!serverNotifyIds.has(n.id)) DB.notify.push(n); });
+      /* Keep local tombstones so deletions made here are never undone by a
+         server copy that still contains the record. */
+      localTomb.forEach(t=>{ if(!DB.tomb.some(x=>x.id===t.id)) DB.tomb.push(t); });
+      applyTombs();
       /* Recover orphaned registration notifications: if a "Registration pending"
          notification exists but the referenced user is missing, recreate them. */
       DB.notify.forEach(n=>{
