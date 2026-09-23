@@ -205,7 +205,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.5';
+const BUILD = '4.6';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -2120,7 +2120,7 @@ function updateStatus(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
   t.status=document.getElementById('stSel').value; t.actualMin=+document.getElementById('stMin').value||0; t.updatedAt=Date.now();
   if(t.supervisorId) notify(t.supervisorId, `Task ${t.code} updated`, `${current.name} set ${t.code} (${t.title}) to "${t.status}". Actual: ${t.actualMin} min.`);
-  save(); toast('Status updated.'); afterTaskAction(id);
+  save(); toast('Status updated.'); closeModal(); render();
 }
 function toggleTimer(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
@@ -2138,9 +2138,10 @@ function verifyTask(id, ok){
   notify(t.assigneeId, `Task ${t.code} ${ok?'verified':'reopened'}`, `${current.name} ${ok?'verified':'reopened'} ${t.code} (${t.title}).`);
   save(); toast(ok?'Task verified.':'Task reopened.'); afterTaskAction(id);
 }
-function modal(html){ const bg=document.createElement('div'); bg.className='modal-bg'; bg.id='modalBg';
+function modal(html){ closeModal();
+  const bg=document.createElement('div'); bg.className='modal-bg'; bg.id='modalBg';
   bg.innerHTML=`<div class="modal">${html}</div>`; wrapTables(bg); bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
-function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remove(); }
+function closeModal(){ document.querySelectorAll('#modalBg,.modal-bg').forEach(m=>m.remove()); }
 
 try{ localStorage.removeItem('wt360_api_token'); }catch(e){}
 /* Migrate away from any old backend URL saved by earlier builds. */
