@@ -172,6 +172,10 @@
     .picker .pickrow span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .picktools{display:flex;gap:8px;align-items:center;margin:2px 0 4px}
     .picktools a{font-size:12px;color:var(--blue);cursor:pointer}
+    .bulkbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#f7fafd}
+    .bulkbar button:disabled{opacity:.45;cursor:not-allowed}
+    .col-sel{width:34px;text-align:center}
+    .col-sel input{width:auto;margin:0}
 </style>
 </head>
 <body>
@@ -201,7 +205,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.1';
+const BUILD = '4.2';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -1098,6 +1102,7 @@ function dashboardView(){
 
 /* -------------------------------- tasks --------------------------------- */
 let expandedTask=null, expandedDates=null;
+let bulkSel=new Set();
 function toggleTaskDetail(id){ expandedTask = expandedTask===id ? null : id; render(); }
 function toggleDate(k){ if(!expandedDates) expandedDates=new Set(); if(expandedDates.has(k)) expandedDates.delete(k); else expandedDates.add(k); render(); }
 function fmtDateLabel(d){
@@ -1121,6 +1126,7 @@ function taskRowHtml(t){
       ${t.status==='Done'?`<button class="btn sm green" onclick="verifyTask('${t.id}',1)">✔ Verify</button>
       <button class="btn sm red" onclick="verifyTask('${t.id}',0)">↺ Reopen</button>`:'—'}</td>`:'';
   const main=`<tr class="task-main${open?' open':''}" onclick="toggleTaskDetail('${t.id}')">
+    ${current.type!=='member'?`<td class="col-sel" onclick="event.stopPropagation()"><input type="checkbox" class="rowsel" value="${t.id}" ${bulkSel.has(t.id)?'checked':''} onchange="bulkToggle('${t.id}',this.checked)"></td>`:''}
     <td><b>${esc(t.code)}</b> <span class="chev">${open?'▾':'▸'}</span><div class="small muted">${esc(t.title)}</div></td>
     <td>${esc(t.section)}<div class="small muted">${esc(t.role)}</div></td>
     <td>${esc(user(t.assigneeId).name)}</td>
@@ -1130,7 +1136,7 @@ function taskRowHtml(t){
     <td class="col-actions" onclick="event.stopPropagation()">
       <button class="btn sm ${open?'ghost':''}" onclick="toggleTaskDetail('${t.id}')">${open?'Hide':'Details'}</button>
       ${current.type!=='member'?`<button class="btn sm red" onclick="deleteTask('${t.id}')">Delete</button>`:''}</td></tr>`;
-  const detail = open ? `<tr class="task-detail"><td colspan="${sup?7:6}">${taskPanel(t)}</td></tr>` : '';
+  const detail = open ? `<tr class="task-detail"><td colspan="${(sup?7:6)+(current.type!=='member'?1:0)}">${taskPanel(t)}</td></tr>` : '';
   return main+detail;
 }
 function statusChips(ts){
@@ -1139,6 +1145,56 @@ function statusChips(ts){
     return `<button class="btn sm ${taskFilter===s?'':'ghost'}" onclick="setFilter('${s}')">${s} (${n})</button>`; }).join(' ');
 }
 function filteredTasks(ts){ return ts.filter(t=>taskFilter==='All'||t.status===taskFilter); }
+/* ---- multi-select bulk actions (verify / reopen / delete many at once) ---- */
+function bulkBar(){
+  if(current.type==='member') return '';
+  const n=bulkSel.size, dis=n?'':' disabled';
+  return `<div class="bulkbar" id="bulkbar">
+    <label class="small" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" onchange="bulkSelectAllShown(this.checked)"> Select all shown</label>
+    <span class="small" data-count><b>${n}</b> selected</span>
+    <button class="btn sm green" data-bulk${dis} onclick="bulkVerify(1)">✔ Verify selected</button>
+    <button class="btn sm red" data-bulk${dis} onclick="bulkVerify(0)">↺ Reopen selected</button>
+    <button class="btn sm red" data-bulk${dis} onclick="bulkDelete()">Delete selected</button>
+    <button class="btn sm ghost" data-bulk${dis} onclick="bulkClear()">Clear</button>
+  </div>`;
+}
+function bulkToggle(id,on){ if(on) bulkSel.add(id); else bulkSel.delete(id); updateBulkBar(); }
+function updateBulkBar(){
+  const bar=document.getElementById('bulkbar'); if(!bar) return;
+  const c=bar.querySelector('[data-count]'); if(c) c.innerHTML='<b>'+bulkSel.size+'</b> selected';
+  bar.querySelectorAll('button[data-bulk]').forEach(b=>{ b.disabled=!bulkSel.size; });
+}
+function bulkSelectAllShown(on){
+  document.querySelectorAll('input.rowsel').forEach(cb=>{ cb.checked=on; if(on) bulkSel.add(cb.value); else bulkSel.delete(cb.value); });
+  updateBulkBar();
+}
+function bulkToggleBundle(on, el){
+  const tbl=el&&el.closest?el.closest('table'):null; if(!tbl) return;
+  tbl.querySelectorAll('input.rowsel').forEach(cb=>{ cb.checked=on; if(on) bulkSel.add(cb.value); else bulkSel.delete(cb.value); });
+  updateBulkBar();
+}
+function bulkClear(){ bulkSel.clear(); render(); }
+function bulkVerify(ok){
+  const ids=[...bulkSel].filter(id=>DB.tasks.some(t=>t.id===id));
+  if(!ids.length){ toast('No tasks selected.'); return; }
+  if(!confirm((ok?'Verify':'Reopen')+' '+ids.length+' selected task(s)?')) return;
+  ids.forEach(id=>{ const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+    t.status=ok?'Verified':'Reopened'; t.updatedAt=Date.now();
+    notify(t.assigneeId, `Task ${t.code} ${ok?'verified':'reopened'}`, `${current.name} ${ok?'verified':'reopened'} ${t.code} (${t.title}).`);
+  });
+  save(); bulkSel.clear(); toast(ids.length+' task(s) '+(ok?'verified':'reopened')+'.'); render();
+}
+function bulkDelete(){
+  const ids=[...bulkSel].filter(id=>DB.tasks.some(t=>t.id===id));
+  if(!ids.length){ toast('No tasks selected.'); return; }
+  if(!confirm('Delete '+ids.length+' selected task(s)? This cannot be undone.')) return;
+  const set=new Set(ids);
+  ids.forEach(id=>{ const t=DB.tasks.find(x=>x.id===id); if(!t) return;
+    tombstone(id); notify(t.assigneeId, 'Task deleted', `${current.name} deleted task ${t.code} (${t.title}).`); });
+  DB.tasks=DB.tasks.filter(t=>!set.has(t.id));
+  save(); bulkSel.clear(); toast(ids.length+' task(s) deleted.'); render();
+}
 function taskListHtml(list){
   if(expandedDates===null) expandedDates=new Set([dateStr(0)]);
   const groups={};
@@ -1162,8 +1218,9 @@ function taskListHtml(list){
     if(!open) return `<div class="bundle">${head}</div>`;
     const rows=tasks.map(taskRowHtml).join('');
     const supTh = showSupervisorColumn()?`<th class="col-sup">Supervisor</th>`:'';
+    const selTh = current.type!=='member'?`<th class="col-sel"><input type="checkbox" title="Select all in this day" onchange="bulkToggleBundle(this.checked,this)"></th>`:'';
     return `<div class="bundle">${head}<div class="bundle-body">
-      <table><tr><th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th>${supTh}<th class="col-actions">Actions</th></tr>${rows}</table>
+      <table><tr>${selTh}<th>Task</th><th>Department / Role</th><th>Assignee</th><th>Status</th><th>Time</th>${supTh}<th class="col-actions">Actions</th></tr>${rows}</table>
     </div></div>`;
   }).join('');
 }
@@ -1172,6 +1229,7 @@ function tasksView(){
   return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
     <p class="desc">Tasks are bundled by due date. Click a date to see that day's tasks, then click a task to update it.${current.type==='member'?'':' Supervisors can verify or reopen inline.'}</p>
     <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${bulkBar()}
     ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks found.</div>'}</div>`;
 }
 function myTasksView(){
@@ -1179,6 +1237,7 @@ function myTasksView(){
   return `<div class="card"><h2>My Tasks</h2>
     <p class="desc">Tasks assigned to you${current.type==='supervisor'?' (as well as your department tasks under "Tasks")':''}. Update your status, log time, and add comments here.</p>
     <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${bulkBar()}
     ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks assigned to you yet.</div>'}</div>`;
 }
 function setFilter(s){ taskFilter=s; render(); }
