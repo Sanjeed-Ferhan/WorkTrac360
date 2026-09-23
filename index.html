@@ -201,7 +201,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.8';
+const BUILD = '3.9';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -589,7 +589,16 @@ function isSuper(){ return !!current && current.type==='superadmin'; }
 function visibleTasks(u){
   if(u.type==='superadmin') return DB.tasks;
   if(u.type==='supervisor') return DB.tasks.filter(t=>t.section===u.section);
-  return DB.tasks.filter(t=>t.assigneeId===u.id);
+  return DB.tasks.filter(t=>isMyTask(t,u));
+}
+/* A task is "mine" if it targets my account or any account sharing my enroll
+   ID (guards against duplicate registrations of the same person). */
+function isMyTask(t,u){
+  u=u||current; if(!t||!u) return false;
+  if(t.assigneeId===u.id) return true;
+  const me=String(u.enroll||'').trim().toLowerCase(); if(!me) return false;
+  const a=DB.users.find(x=>x.id===t.assigneeId);
+  return !!(a && String(a.enroll||'').trim().toLowerCase()===me);
 }
 function deptSupervisors(sec){ return DB.users.filter(u=>u.type==='supervisor' && u.section===sec && u.status==='approved'); }
 function rolesOf(sec){ return DB.roles.filter(r=>r.section===sec).sort((a,b)=>a.name.localeCompare(b.name)); }
@@ -754,8 +763,14 @@ function selfRegister(){
 }
 function loginByInput(){
   const v=(document.getElementById('loginId').value||'').trim().toLowerCase();
-  const u=DB.users.find(x=>x.enroll.toLowerCase()===v);
-  if(!u){ toast('No account found for this enroll ID.'); return; }
+  const cands=DB.users.filter(x=>String(x.enroll).trim().toLowerCase()===v);
+  if(!cands.length){ toast('No account found for this enroll ID.'); return; }
+  const valid=cands.filter(u=>u.status==='approved');
+  const pool=valid.length?valid:cands;
+  /* Prefer a clean department, then the record holding the most tasks. */
+  const score=u=>{ let s=0; if(SECTIONS.indexOf(String(u.section||'').trim())>=0) s+=100;
+    s+=DB.tasks.filter(t=>t.assigneeId===u.id).length; if(u.type==='supervisor') s+=5; return s; };
+  const u=pool.slice().sort((a,b)=>score(b)-score(a))[0];
   if(u.status!=='approved'){ toast('Your registration is awaiting supervisor approval.'); return; }
   login(u.id);
 }
@@ -768,7 +783,7 @@ function shell(){
   if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
   if(isSuper()) tabs.push(['departments','Departments']);
   tabs.push(['notify','Notifications']);
-  const myOpen=DB.tasks.filter(t=>t.assigneeId===current.id && t.status!=='Done' && t.status!=='Verified').length;
+  const myOpen=DB.tasks.filter(t=>isMyTask(t,current) && t.status!=='Done' && t.status!=='Verified').length;
   const nav=tabs.map(([k,l])=>{
     let c='';
     if(k==='notify' && unread()) c=`<span class="cnt">${unread()}</span>`;
@@ -1158,7 +1173,7 @@ function tasksView(){
     ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks found.</div>'}</div>`;
 }
 function myTasksView(){
-  const ts=DB.tasks.filter(t=>t.assigneeId===current.id);
+  const ts=DB.tasks.filter(t=>isMyTask(t,current));
   return `<div class="card"><h2>My Tasks</h2>
     <p class="desc">Tasks assigned to you${current.type==='supervisor'?' (as well as your department tasks under "Tasks")':''}. Update your status, log time, and add comments here.</p>
     <div style="margin-bottom:12px">${statusChips(ts)}</div>
@@ -1197,7 +1212,7 @@ function assignView(){
       const anyMatch=!q||list.some(m=>hayOf(m).indexOf(q)>=0);
       const head=s?`<div class="pickgroup"${anyMatch?'':' style="display:none"'}>${esc(s)}</div>`:'';
       const rows=list.map(m=>{
-        const label=scope==='all'?`${m.name} · ${m.role} (${m.enroll})`:`${m.name} (${m.enroll})`;
+        const label=scope==='all'?`${m.name} · ${m.role} (${m.enroll}) · ${m.type}`:`${m.name} (${m.enroll}) · ${m.type}`;
         const match=!q||hayOf(m).indexOf(q)>=0;
         return `<label class="pickrow" data-hay="${esc(hayOf(m))}"${match?'':' style="display:none"'}><input type="checkbox" value="${m.id}" ${selSet.has(m.id)?'checked':''} onchange="toggleAssignMember('${m.id}',this.checked)"><span>${esc(label)}</span></label>`;
       }).join('');
@@ -1713,6 +1728,7 @@ function departmentsView(){
       <button class="btn red" onclick="deleteTasksOf(document.getElementById('delSec').value)">Delete tasks of selected department</button>
       <button class="btn red" onclick="clearTasks()">Delete ALL tasks (${tot})</button>
       <button class="btn red" onclick="clearTeam()">Remove ALL team members</button>
+      <button class="btn" style="background:#7F8C8D" onclick="openDedupe()">Clean duplicate accounts (${dupGroups().length} groups)</button>
     </div>
   </div>` : '';
   return `<div class="card"><h2>Departments — Super Admin</h2>
@@ -1720,6 +1736,62 @@ function departmentsView(){
     <table><tr><th>Department</th><th>Supervisors</th><th>Members</th><th>Pending</th><th>Tasks</th><th>Done</th><th>Completion</th><th>Overdue</th><th>Est / Actual min</th><th>Actions</th></tr>
     ${rows}</table></div>
   ${danger}`;
+}
+/* Duplicate accounts share an Enroll ID (often created by re-registration).
+   Showing tasks by enroll keeps them visible, but the data is still messy. */
+function cleanSectionVal(s){
+  s=String(s==null?'':s).trim();
+  if(SECTIONS.indexOf(s)>=0) return s;
+  const base=s.split('.')[0].trim();
+  return SECTIONS.indexOf(base)>=0?base:s;
+}
+function dupGroups(){
+  const norm=s=>String(s==null?'':s).trim().toLowerCase();
+  const map={};
+  DB.users.forEach(u=>{ const k=norm(u.enroll); if(!k) return; (map[k]=map[k]||[]).push(u); });
+  return Object.keys(map).map(k=>({enroll:k, users:map[k]})).filter(g=>g.users.length>1);
+}
+function openDedupe(){
+  const groups=dupGroups();
+  const badSec=DB.users.filter(u=>cleanSectionVal(u.section)!==String(u.section||'').trim());
+  if(!groups.length && !badSec.length){ toast('No duplicates or invalid departments found.'); return; }
+  const rows=groups.map(g=>{
+    const names=[...new Set(g.users.map(u=>esc(u.name)))].join(' / ');
+    const types=g.users.map(u=>esc(u.type)).join(', ');
+    const secs=[...new Set(g.users.map(u=>esc(u.section)))].join(' | ');
+    return `<tr><td>${names}</td><td>${esc(g.users[0].enroll)}</td><td class="small">${types}</td><td class="small">${secs}</td><td>${g.users.length}</td></tr>`;
+  }).join('');
+  modal(`<h3>Clean duplicate accounts</h3>
+    <p class="desc">Accounts sharing the same Enroll ID. Merging keeps the best account, moves its tasks &amp; notifications to it, and removes the rest. Groups with different names under one Enroll ID are skipped for manual review.</p>
+    ${groups.length?`<table><tr><th>Name(s)</th><th>Enroll</th><th>Types</th><th>Departments</th><th>#</th></tr>${rows}</table>`:'<p class="small muted">No duplicate Enroll IDs.</p>'}
+    ${badSec.length?`<p class="small">${badSec.length} account(s) have an invalid department (extra text after the department name) and will be corrected.</p>`:''}
+    <div style="margin-top:12px"><button class="btn" style="background:#C0392B" onclick="runDedupe()">Merge ${groups.length} group(s) &amp; fix ${badSec.length} department(s)</button>
+    <button class="btn ghost" onclick="closeModal()">Cancel</button></div>`);
+}
+function runDedupe(){
+  const groups=dupGroups();
+  let merged=0, removed=0, fixed=0, skipped=0;
+  groups.forEach(g=>{
+    const uniqNames=[...new Set(g.users.map(u=>String(u.name||'').trim().toLowerCase()))];
+    if(uniqNames.length!==1){ skipped++; return; }
+    const score=u=>{ let s=0; if(SECTIONS.indexOf(cleanSectionVal(u.section))>=0) s+=100;
+      s+=DB.tasks.filter(t=>t.assigneeId===u.id).length;
+      if(u.status==='approved') s+=10; if(u.type==='supervisor') s+=5; return s; };
+    const sorted=g.users.slice().sort((a,b)=>score(b)-score(a));
+    const keep=sorted[0];
+    if(String(keep.section||'').trim()!==cleanSectionVal(keep.section)) keep.section=cleanSectionVal(keep.section);
+    sorted.slice(1).forEach(bad=>{
+      DB.tasks.forEach(t=>{ if(t.assigneeId===bad.id) t.assigneeId=keep.id; if(t.supervisorId===bad.id) t.supervisorId=keep.id; });
+      DB.notify.forEach(n=>{ if(n.to===bad.id) n.to=keep.id; });
+      tombstone(bad.id);
+      DB.users=DB.users.filter(u=>u.id!==bad.id);
+      removed++;
+    });
+    merged++;
+  });
+  DB.users.forEach(u=>{ const c=cleanSectionVal(u.section); if(c!==String(u.section||'').trim()){ u.section=c; fixed++; } });
+  save(); render();
+  toast(`Merged ${merged} group(s), removed ${removed} duplicate(s), fixed ${fixed} department(s)${skipped?', skipped '+skipped+' ambiguous':''}.`);
 }
 
 /* ------------------------------- workload ------------------------------- */
