@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.6';
+const BUILD = '2.7';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -236,7 +236,7 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
    With no URL set, the app runs browser-only (localStorage). */
 const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbw8BTxLpYtQ2ePzO_CXAAAu_0YQcsu7LiPV9g9rhJNdB4t3gNPHNDhZV2eONCTllpmV/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
-let API_OK=false, API_AT=0;
+let API_OK=false, API_AT=0, API_ERR='';
 let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0;
 let saveTimer=null;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
@@ -262,7 +262,7 @@ function pushNow(){
   fetch(u,{method:'POST',body:JSON.stringify(payload)})
     .then(r=>r.json()).then(j=>{
       API_OK=!!(j&&j.ok); API_AT=Date.now();
-      if(j&&j.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=j.rev; }
+      if(j&&j.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=j.rev; API_ERR=''; }
       else if(j&&j.error==='stale'){
         /* Another tab/device saved first — reload instead of overwriting.
            Skip the flush so our outdated copy can't clobber their newer save. */
@@ -270,8 +270,9 @@ function pushNow(){
         skipFlush=true;
         apiLoad().then(ok=>{ if(ok){ render(); toast('Data re-synced from the latest save.'); } });
       }
+      else { API_ERR=(j&&j.error)?j.error:'save failed'; }
     })
-    .catch(()=>{ API_OK=false; });
+    .catch(e=>{ API_ERR=String((e&&e.message)||e); API_OK=false; });
 }
 /* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
    Normalise them back to the types the app expects. */
@@ -351,8 +352,9 @@ async function apiLoad(){
       lastServerVersion=dbVersion;
       API_OK=true; API_AT=Date.now(); syncing=false; return true;
     }
+    API_ERR=(j&&j.error)?j.error:'unexpected server response';
     API_OK=false; syncing=false;
-  }catch(e){ API_OK=false; syncing=false; }
+  }catch(e){ API_ERR=String((e&&e.message)||e); API_OK=false; syncing=false; }
   return false;
 }
 /* ---- Fast sync: rev-aware check, focus refresh, manual sync ---- */
@@ -380,7 +382,8 @@ async function manualSync(){
   if(!apiUrl()){ toast('No backend configured.'); return; }
   toast('Syncing…');
   const ok=await apiLoad();
-  if(ok){ render(); toast('Up to date.'); } else toast('Sync failed — check your connection.');
+  if(ok){ render(); toast('Up to date · rev '+((DB.seq&&DB.seq.rev)||0)); }
+  else toast('Sync failed — '+(API_ERR||'check your connection'));
 }
 let pollTimer=null;
 function scheduleSyncLoop(){
@@ -700,7 +703,7 @@ function shell(){
     <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
     ${canInstall?'<button class="btn ghost sm" onclick="installApp()" title="Install app">Install</button>':''}
-    <button class="btn ghost sm" onclick="manualSync()" title="Sync now">⟳ Sync</button>
+    <button class="btn ghost sm" onclick="manualSync()" title="${API_ERR?('Last sync error: '+esc(API_ERR)):'Sync now'}">⟳ Sync${API_OK?'':' •'}</button>
     <button class="btn ghost sm" onclick="openRestore()" title="Restore data">Restore</button>
     <button class="btn ghost sm" onclick="logout()">Log out</button>
   </div>
@@ -1734,6 +1737,13 @@ function modal(html){ const bg=document.createElement('div'); bg.className='moda
 function closeModal(){ const m=document.getElementById('modalBg'); if(m) m.remove(); }
 
 try{ localStorage.removeItem('wt360_api_token'); }catch(e){}
+/* Migrate away from any old backend URL saved by earlier builds. */
+try{
+  const OLD=['AKfycbyaYcfA1GYRXavQKhnGZLyj6IpORkqX2sRWNgsNXhRkyh8-7DFskFHsGzX4deSYMlRq',
+             'AKfycbwYbNs6mnZRAx_RejyOwNNNERriuuIlGEUooEjX3Lqxy9YfkyEGsaWUN7PjuNKboNTu'];
+  const saved=localStorage.getItem('wt360_api_url');
+  if(saved && OLD.some(k=>saved.indexOf(k)>=0)) localStorage.removeItem('wt360_api_url');
+}catch(e){}
 load();
 render();
 if(apiUrl()) apiLoad().then(ok=>{ if(ok) render(); });
