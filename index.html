@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.2';
+const BUILD = '3.3';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -226,7 +226,7 @@ const SUPERVISOR_HINT = {
 
 /* ------------------------------- state ---------------------------------- */
 function blankDB(){
-  return {users:[], roles:[], dict:[], tasks:[], notify:[], settings:{dailyMinutes:480}, seq:{task:1, role:1, dict:1}};
+  return {users:[], roles:[], dict:[], tasks:[], notify:[], tomb:[], settings:{dailyMinutes:480}, seq:{task:1, role:1, dict:1, rev:0}};
 }
 let DB;
 function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw):blankDB(); }catch(e){ DB=blankDB(); } if(!DB.seq) DB.seq=blankDB().seq; if(!DB.settings) DB.settings={dailyMinutes:480}; }
@@ -255,6 +255,10 @@ function save(){
 function isBlankDB(){
   return (DB.users||[]).length===0 && (DB.tasks||[]).length===0;
 }
+/* Record a deletion so the server removes the record for everyone (merge-safe). */
+function tombstone(id){ if(!id) return; if(!Array.isArray(DB.tomb)) DB.tomb=[];
+  if(!DB.tomb.some(x=>x.id===id)) DB.tomb.push({id:id, at:Date.now()}); }
+function tombstoneAll(ids){ (ids||[]).forEach(tombstone); }
 function pushNow(){
   const u=apiUrl(); if(!u) return;
   if(syncing || isBlankDB()) return;
@@ -277,7 +281,7 @@ function pushNow(){
 /* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
    Normalise them back to the types the app expects. */
 function normalizeDB(){
-  ['users','roles','dict','tasks','notify'].forEach(k=>{ if(!Array.isArray(DB[k])) DB[k]=[]; });
+  ['users','roles','dict','tasks','notify','tomb'].forEach(k=>{ if(!Array.isArray(DB[k])) DB[k]=[]; });
   DB.users.forEach(u=>{ u.enroll=String(u.enroll==null?'':u.enroll); u.name=String(u.name||''); u.role=String(u.role||''); });
   DB.roles.forEach(r=>{ r.name=String(r.name||''); });
   DB.dict.forEach(d=>{ d.estMin=+d.estMin||0; d.title=String(d.title||''); });
@@ -1297,12 +1301,13 @@ function approveUser(id, ok){
   save(); render();
 }
 function removeUser(id){ const u=DB.users.find(x=>x.id===id); if(!u) return; if(!confirm('Remove '+u.name+'?')) return;
-  DB.users=DB.users.filter(x=>x.id!==id); save(); render(); }
+  tombstone(id); DB.users=DB.users.filter(x=>x.id!==id); save(); render(); }
 
 /* ------------------------------ deletions ------------------------------- */
 function deleteTask(id){
   const t=DB.tasks.find(x=>x.id===id); if(!t) return;
   if(!confirm('Delete task '+t.code+' — '+t.title+'?')) return;
+  tombstone(id);
   DB.tasks=DB.tasks.filter(x=>x.id!==id);
   notify(t.assigneeId, 'Task deleted', `${current.name} deleted task ${t.code} (${t.title}).`);
   save(); toast('Task deleted.'); if(expandedTask===id) expandedTask=null; closeModal(); render();
@@ -1312,6 +1317,7 @@ function deleteTasksOf(sec){
   const n=list.length;
   if(!n){ toast('No tasks'+(sec==='All'?'':' in '+sec)+'.'); return; }
   if(!confirm('Delete ALL '+n+' task(s)'+(sec==='All'?' in every department':' of '+sec)+'? This cannot be undone.')) return;
+  tombstoneAll(list.map(t=>t.id));
   DB.tasks = (sec==='All') ? [] : DB.tasks.filter(t=>t.section!==sec);
   save(); toast(n+' task(s) deleted'+(sec==='All'?' (all departments)':' from '+sec)+'.'); render();
 }
@@ -1319,12 +1325,13 @@ function clearTasks(){
   const n=DB.tasks.length;
   if(!n){ toast('No tasks to delete.'); return; }
   if(!confirm('Delete ALL '+n+' tasks in every department? This cannot be undone.')) return;
-  DB.tasks=[]; save(); toast('All tasks deleted.'); render();
+  tombstoneAll(DB.tasks.map(t=>t.id)); DB.tasks=[]; save(); toast('All tasks deleted.'); render();
 }
 function clearTeam(){
   const n=DB.users.filter(u=>u.type!=='superadmin').length;
   if(!n){ toast('No team members to remove.'); return; }
   if(!confirm('Remove ALL '+n+' team members and supervisors in every department? This cannot be undone.')) return;
+  tombstoneAll(DB.users.filter(u=>u.type!=='superadmin').map(u=>u.id));
   DB.users=DB.users.filter(u=>u.type==='superadmin');
   save(); toast('All team members removed.'); render();
 }
@@ -1443,7 +1450,7 @@ function addRole(){
   ensureRole(sec, name); save(); render();
 }
 function delRole(id){ const r=DB.roles.find(x=>x.id===id); if(!r) return; if(!confirm('Delete role '+r.name+'?')) return;
-  DB.roles=DB.roles.filter(x=>x.id!==id); save(); render(); }
+  tombstone(id); DB.roles=DB.roles.filter(x=>x.id!==id); save(); render(); }
 function addDict(){
   const sec=dictSec(), role=window.__dictRole||'';
   const title=document.getElementById('dTitle').value.trim();
@@ -1453,7 +1460,7 @@ function addDict(){
     priority:document.getElementById('dPrio').value, frequency:document.getElementById('dFreq').value});
   save(); render();
 }
-function delDict(id){ const d=DB.dict.find(x=>x.id===id); if(!d) return; DB.dict=DB.dict.filter(x=>x.id!==id); save(); render(); }
+function delDict(id){ const d=DB.dict.find(x=>x.id===id); if(!d) return; tombstone(id); DB.dict=DB.dict.filter(x=>x.id!==id); save(); render(); }
 
 /* ------------------------------- reports -------------------------------- */
 function dstr(ts){ const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
