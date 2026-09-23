@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.4';
+const BUILD = '2.5';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -248,7 +248,7 @@ function save(){
   if(isBlankDB()) return;
   dbVersion++;
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(pushNow, 500);
+  saveTimer=setTimeout(pushNow, 180);
 }
 /* A blank/empty DB must never reach the sheet — it would wipe everything.
    Legitimate state always has at least one user (the superadmin). */
@@ -348,6 +348,44 @@ async function apiLoad(){
   }catch(e){ API_OK=false; syncing=false; }
   return false;
 }
+/* ---- Fast sync: rev-aware check, focus refresh, manual sync ---- */
+function busyInput(){
+  if(document.getElementById('modalBg')) return true;
+  const ae=document.activeElement;
+  return !!(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName));
+}
+/* Cheap check: only fetch full data when the server revision changed. */
+async function smartSync(){
+  const u=apiUrl(); if(!u || syncing) return false;
+  if(busyInput()) return false;
+  let srvRev=null;
+  try{
+    const r=await fetch(u+'?action=ping&token='+encodeURIComponent(apiToken()));
+    const j=await r.json();
+    if(j&&j.ok && typeof j.rev==='number') srvRev=j.rev;
+  }catch(e){}
+  if(srvRev!==null && srvRev===+((DB.seq&&DB.seq.rev)||0)) return false; /* already current */
+  const ok=await apiLoad();
+  if(ok) render();
+  return ok;
+}
+async function manualSync(){
+  if(!apiUrl()){ toast('No backend configured.'); return; }
+  toast('Syncing…');
+  const ok=await apiLoad();
+  if(ok){ render(); toast('Up to date.'); } else toast('Sync failed — check your connection.');
+}
+let pollTimer=null;
+function scheduleSyncLoop(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(()=>{
+    if(!current || !apiUrl() || document.hidden) return;
+    smartSync();
+  }, 15000);
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && current && apiUrl()) smartSync(); });
+window.addEventListener('focus',()=>{ if(current && apiUrl()) smartSync(); });
+window.addEventListener('online',()=>{ if(current && apiUrl()) smartSync(); });
 /* ---- PWA: install prompt + offline service worker ---- */
 let canInstall=false, deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; canInstall=true; if(current) render(); });
@@ -609,6 +647,7 @@ function shell(){
     <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
     ${canInstall?'<button class="btn ghost sm" onclick="installApp()" title="Install app">Install</button>':''}
+    <button class="btn ghost sm" onclick="manualSync()" title="Sync now">⟳ Sync</button>
     <button class="btn ghost sm" onclick="logout()">Log out</button>
   </div>
   <div class="nav">${nav}</div>
@@ -1644,13 +1683,7 @@ try{ localStorage.removeItem('wt360_api_token'); }catch(e){}
 load();
 render();
 if(apiUrl()) apiLoad().then(ok=>{ if(ok) render(); });
-setInterval(()=>{
-  if(!current || !apiUrl()) return;
-  if(document.getElementById('modalBg')) return;
-  const ae=document.activeElement;
-  if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
-  apiLoad().then(ok=>{ if(ok) render(); });
-}, 60000);
+scheduleSyncLoop();
 </script>
 </body>
 </html>
