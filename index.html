@@ -607,6 +607,17 @@ function isMyTask(t,u){
 }
 function deptSupervisors(sec){ return DB.users.filter(u=>u.type==='supervisor' && u.section===sec && u.status==='approved'); }
 function rolesOf(sec){ return DB.roles.filter(r=>r.section===sec).sort((a,b)=>a.name.localeCompare(b.name)); }
+/* Role list for assignment, built from the people actually in that section
+   (so the label always matches what members have). Falls back to DB.roles too. */
+function memberRolesOf(sec){
+  const s=(x)=>String(x==null?'':x).trim().toLowerCase();
+  const map={};
+  rolesOf(sec).forEach(r=>{ if(r.name){ const k=s(r.name); if(!map[k]) map[k]=r.name; } });
+  DB.users.filter(u=>u.section===sec && u.type==='member' && u.status==='approved').forEach(u=>{
+    if(u.role){ const k=s(u.role); if(!map[k]) map[k]=u.role; }
+  });
+  return Object.keys(map).sort().map(k=>map[k]);
+}
 function ensureRole(sec, name){
   name = String(name||'').trim(); if(!name) return;
   if(!DB.roles.some(r=>r.section===sec && r.name.toLowerCase()===name.toLowerCase()))
@@ -1247,18 +1258,20 @@ let assignRows=[];
 function assignView(){
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
   const scope = isSuper() ? (window.__assignScope || 'dept') : 'dept';
-  const roles=rolesOf(sec);
-  const roleSel=window.__assignRole || (roles[0]&&roles[0].name) || '';
+  const roles=memberRolesOf(sec);
+  const rNorm = window.__assignRole ? String(window.__assignRole).trim().toLowerCase() : '';
+  const roleSel = rNorm ? (roles.find(r=>String(r).trim().toLowerCase()===rNorm) || roles[0]) : (roles[0]||'');
   let members;
   if(scope==='all'){
     members=DB.users.filter(u=>u.type==='member' && u.status==='approved')
       .sort((a,b)=>((a.section+a.name).localeCompare(b.section+b.name)));
   }else{
-    members=DB.users.filter(u=>u.type==='member' && u.section===sec && u.role===roleSel && u.status==='approved');
+    const rr=rNorm||'';
+    members=DB.users.filter(u=>u.type==='member' && u.section===sec && (!rr||String(u.role||'').trim().toLowerCase()===rr) && u.status==='approved');
   }
-  const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||d.role===roleSel));
+  const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||String(d.role||'').trim().toLowerCase()===rNorm));
   if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
-  const roleOptions=roles.map(r=>`<option ${r.name===roleSel?'selected':''}>${esc(r.name)}</option>`).join('');
+  const roleOptions=roles.map(r=>`<option ${r===roleSel?'selected':''}>${esc(r)}</option>`).join('');
   const memberPicker=memberPickerHtml('assignMember','__assignSel',members,
     scope==='all'
       ? { groupOf:m=>m.section, labelOf:m=>`${m.name} · ${m.role} (${m.enroll}) · ${m.type}` }
