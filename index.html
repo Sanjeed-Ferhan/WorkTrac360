@@ -201,7 +201,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.9';
+const BUILD = '4.0';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -588,7 +588,7 @@ function unread(){ return myNotifs().filter(n=>!n.read).length; }
 function isSuper(){ return !!current && current.type==='superadmin'; }
 function visibleTasks(u){
   if(u.type==='superadmin') return DB.tasks;
-  if(u.type==='supervisor') return DB.tasks.filter(t=>t.section===u.section);
+  if(u.type==='supervisor') return DB.tasks.filter(t=>t.section===u.section || t.assignedById===u.id || t.assigneeId===u.id);
   return DB.tasks.filter(t=>isMyTask(t,u));
 }
 /* A task is "mine" if it targets my account or any account sharing my enroll
@@ -780,7 +780,7 @@ function logout(){ current=null; authMode='signin'; authMsg=null; render(); }
 /* --------------------------------- shell -------------------------------- */
 function shell(){
   const tabs=[['dashboard','Dashboard'],['tasks','Tasks']];
-  if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
+  if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['cross','Cross Functional']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
   if(isSuper()) tabs.push(['departments','Departments']);
   tabs.push(['notify','Notifications']);
   const myOpen=DB.tasks.filter(t=>isMyTask(t,current) && t.status!=='Done' && t.status!=='Verified').length;
@@ -796,6 +796,7 @@ function shell(){
     case 'tasks': body=tasksView(); break;
     case 'mytasks': body=myTasksView(); break;
     case 'assign': body=assignView(); break;
+    case 'cross': body=crossView(); break;
     case 'team': body=teamView(); break;
     case 'dictionary': body=dictView(); break;
     case 'workload': body=workloadView(); break;
@@ -1198,27 +1199,10 @@ function assignView(){
   const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||d.role===roleSel));
   if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
   const roleOptions=roles.map(r=>`<option ${r.name===roleSel?'selected':''}>${esc(r.name)}</option>`).join('');
-  if(!Array.isArray(window.__assignSel)) window.__assignSel=[];
-  const selSet=new Set(window.__assignSel);
-  const q=(window.__assignSearch||'').toLowerCase().trim();
-  const hayOf=m=>`${m.name||''} ${m.role||''} ${m.enroll||''} ${m.section||''}`.toLowerCase();
-  let memberPicker;
-  if(!members.length){
-    memberPicker='<div class="small muted" style="padding:8px 2px">— no approved employees —</div>';
-  }else{
-    const groups = scope==='all' ? SECTIONS.filter(s=>members.some(m=>m.section===s)) : [null];
-    memberPicker=groups.map(s=>{
-      const list=members.filter(m=> s? m.section===s : true);
-      const anyMatch=!q||list.some(m=>hayOf(m).indexOf(q)>=0);
-      const head=s?`<div class="pickgroup"${anyMatch?'':' style="display:none"'}>${esc(s)}</div>`:'';
-      const rows=list.map(m=>{
-        const label=scope==='all'?`${m.name} · ${m.role} (${m.enroll}) · ${m.type}`:`${m.name} (${m.enroll}) · ${m.type}`;
-        const match=!q||hayOf(m).indexOf(q)>=0;
-        return `<label class="pickrow" data-hay="${esc(hayOf(m))}"${match?'':' style="display:none"'}><input type="checkbox" value="${m.id}" ${selSet.has(m.id)?'checked':''} onchange="toggleAssignMember('${m.id}',this.checked)"><span>${esc(label)}</span></label>`;
-      }).join('');
-      return head+rows;
-    }).join('');
-  }
+  const memberPicker=memberPickerHtml('assignMember','__assignSel',members,
+    scope==='all'
+      ? { groupOf:m=>m.section, labelOf:m=>`${m.name} · ${m.role} (${m.enroll}) · ${m.type}` }
+      : { labelOf:m=>`${m.name} (${m.enroll}) · ${m.type}` });
   const freqSel=window.__dictFreq||'All';
   const dictMatch=dict.filter(d=>freqSel==='All'||d.frequency===freqSel);
   const dictPreview=dictMatch.length?dictMatch.map(d=>`<div class="small" style="display:flex;justify-content:space-between;border-bottom:1px solid #eef1f4;padding:4px 0">
@@ -1237,18 +1221,17 @@ function assignView(){
     <p class="desc">${scope==='all'?'<b>Any employee mode</b> — pick anyone across all departments and roles. Each task is filed under that employee\'s own department and role.':'Pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.'}</p>
     ${isSuper()?`<div class="row" style="margin-bottom:6px">
       <label class="small" style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="checkbox" ${scope==='all'?'checked':''} onchange="window.__assignScope=this.checked?'all':'dept';assignRows=[];window.__assignSel=[];window.__assignSearch='';render()">
+        <input type="checkbox" ${scope==='all'?'checked':''} onchange="window.__assignScope=this.checked?'all':'dept';assignRows=[];window.__assignSel=[];window.__assignSel_q='';render()">
         Assign to any employee (all departments &amp; roles)
       </label></div>`:''}
     <div class="row">
       ${isSuper() && scope!=='all'?`<div class="field" style="min-width:180px"><label>Department</label>
-        <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];window.__assignSel=[];window.__assignSearch='';render()">
+        <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];window.__assignSel=[];window.__assignSel_q='';render()">
           ${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
       ${scope!=='all'?`<div class="field" style="min-width:190px"><label>Role</label>
-        <select onchange="window.__assignRole=this.value;window.__assignSel=[];window.__assignSearch='';render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>`:''}
+        <select onchange="window.__assignRole=this.value;window.__assignSel=[];window.__assignSel_q='';render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>`:''}
       <div class="field" style="min-width:250px"><label>Assign to member(s)</label>
-        <input id="assignSearch" placeholder="Search name / role / ID…" value="${esc(window.__assignSearch||'')}" oninput="filterAssignList()">
-        <div class="picktools"><a onclick="selectAllAssignShown(true)">Select all shown</a><a onclick="selectAllAssignShown(false)">Clear</a><span class="small muted" id="assignSelCount">${(window.__assignSel||[]).length?(window.__assignSel.length+' selected'):''}</span></div>
+        ${pickerTools('assignMember','__assignSel')}
         <div id="assignMember" class="picker">${memberPicker}</div>
       </div>
       <div class="field" style="min-width:150px"><label>Shift</label>
@@ -1274,21 +1257,49 @@ function assignView(){
   </div>`;
 }
 function addRow(){ assignRows.push({title:'',estMin:30,priority:'Medium',frequency:'One-time'}); render(); }
-function toggleAssignMember(id,on){
-  if(!Array.isArray(window.__assignSel)) window.__assignSel=[];
-  if(on){ if(!window.__assignSel.includes(id)) window.__assignSel.push(id); }
-  else { window.__assignSel=window.__assignSel.filter(x=>x!==id); }
-  updateAssignCount();
+/* ---- reusable searchable multi-select (used by Assign & Cross Functional) ---- */
+function memberPickerHtml(containerId, selKey, members, opts){
+  opts=opts||{};
+  const labelOf=opts.labelOf||(m=>`${m.name} (${m.enroll})`);
+  const groupOf=opts.groupOf||null;
+  const hayOf=opts.hayOf||(m=>`${m.name||''} ${m.role||''} ${m.enroll||''} ${m.section||''}`.toLowerCase());
+  if(!Array.isArray(window[selKey])) window[selKey]=[];
+  const selSet=new Set(window[selKey]);
+  const q=String(window[selKey+'_q']||'').toLowerCase().trim();
+  if(!members.length) return '<div class="small muted" style="padding:8px 2px">— none available —</div>';
+  let groups;
+  if(groupOf){ const gs=[]; members.forEach(m=>{ const g=groupOf(m); if(!gs.includes(g)) gs.push(g); }); groups=gs.map(g=>({g:g,list:members.filter(m=>groupOf(m)===g)})); }
+  else groups=[{g:null,list:members}];
+  return groups.map(({g,list})=>{
+    const anyMatch=!q||list.some(m=>hayOf(m).indexOf(q)>=0);
+    const head=g?`<div class="pickgroup"${anyMatch?'':' style="display:none"'}>${esc(g)}</div>`:'';
+    const rows=list.map(m=>{
+      const match=!q||hayOf(m).indexOf(q)>=0;
+      return `<label class="pickrow" data-hay="${esc(hayOf(m))}"${match?'':' style="display:none"'}><input type="checkbox" value="${m.id}" ${selSet.has(m.id)?'checked':''} onchange="pickToggle('${selKey}',this.value,this.checked)"><span>${esc(labelOf(m))}</span></label>`;
+    }).join('');
+    return head+rows;
+  }).join('');
 }
-function updateAssignCount(){
-  const el=document.getElementById('assignSelCount');
-  if(el){ const n=(window.__assignSel||[]).length; el.textContent=n?n+' selected':''; }
+function pickerTools(containerId, selKey){
+  const n=(window[selKey]||[]).length;
+  return `<input id="${containerId}_search" placeholder="Search name / role / ID…" value="${esc(window[selKey+'_q']||'')}" oninput="pickFilter('${containerId}','${selKey}')">
+    <div class="picktools"><a onclick="pickAll('${selKey}','${containerId}',true)">Select all shown</a><a onclick="pickAll('${selKey}','${containerId}',false)">Clear</a><span class="small muted" id="${selKey}_cnt">${n?n+' selected':''}</span></div>`;
 }
-function filterAssignList(){
-  const box=document.getElementById('assignSearch');
-  window.__assignSearch=box?box.value:'';
-  const q=(window.__assignSearch||'').toLowerCase().trim();
-  const list=document.getElementById('assignMember'); if(!list) return;
+function pickToggle(selKey,id,on){
+  if(!Array.isArray(window[selKey])) window[selKey]=[];
+  if(on){ if(!window[selKey].includes(id)) window[selKey].push(id); }
+  else { window[selKey]=window[selKey].filter(x=>x!==id); }
+  pickCount(selKey);
+}
+function pickCount(selKey){
+  const el=document.getElementById(selKey+'_cnt');
+  if(el){ const n=(window[selKey]||[]).length; el.textContent=n?n+' selected':''; }
+}
+function pickFilter(containerId, selKey){
+  const box=document.getElementById(containerId+'_search');
+  window[selKey+'_q']=box?box.value:'';
+  const q=String(window[selKey+'_q']||'').toLowerCase().trim();
+  const list=document.getElementById(containerId); if(!list) return;
   list.querySelectorAll('.pickrow').forEach(el=>{
     const hay=el.getAttribute('data-hay')||'';
     el.style.display=(!q||hay.indexOf(q)>=0)?'':'none';
@@ -1299,15 +1310,15 @@ function filterAssignList(){
     g.style.display=n?'':'none';
   });
 }
-function selectAllAssignShown(on){
-  const list=document.getElementById('assignMember'); if(!list) return;
+function pickAll(selKey, containerId, on){
+  const list=document.getElementById(containerId); if(!list) return;
   list.querySelectorAll('.pickrow').forEach(el=>{
     if(el.style.display==='none') return;
     const cb=el.querySelector('input'); if(!cb) return;
-    if(on && !cb.checked){ cb.checked=true; toggleAssignMember(cb.value,true); }
-    if(!on && cb.checked){ cb.checked=false; toggleAssignMember(cb.value,false); }
+    if(on && !cb.checked){ cb.checked=true; pickToggle(selKey,cb.value,true); }
+    if(!on && cb.checked){ cb.checked=false; pickToggle(selKey,cb.value,false); }
   });
-  updateAssignCount();
+  pickCount(selKey);
 }
 function loadFromDict(){
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
@@ -1358,7 +1369,72 @@ function submitAssign(){
     const secs=new Set(memberIds.map(mid=>{ const m=DB.users.find(u=>u.id===mid); return m?m.section:null; }).filter(Boolean));
     secs.forEach(s=>notifyDept(s, 'Tasks assigned', `${current.name} assigned task(s) to staff in ${s}.`, current.id));
   }
-  save(); toast(`${valid.length} task(s) assigned to ${memberIds.length} member(s).`); assignRows=[]; window.__assignSel=[]; window.__assignSearch=''; go('tasks');
+  save(); toast(`${valid.length} task(s) assigned to ${memberIds.length} member(s).`); assignRows=[]; window.__assignSel=[]; window.__assignSel_q=''; go('tasks');
+}
+
+/* -------------------------- cross functional task ------------------------ */
+let crossRows=[];
+function addCrossRow(){ crossRows.push({title:'',estMin:30,priority:'Medium',frequency:'One-time'}); render(); }
+function removeCrossRow(i){ crossRows.splice(i,1); if(!crossRows.length) addCrossRow(); else render(); }
+function crossView(){
+  const cSec=window.__crossSec || (SECTIONS.indexOf(current.section)>=0 ? current.section : SECTIONS[0]);
+  const sups=DB.users.filter(u=>u.type==='supervisor' && u.status==='approved' && u.section===cSec)
+    .sort((a,b)=>String(a.name).localeCompare(b.name));
+  if(!crossRows.length) crossRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
+  const picker=memberPickerHtml('crossMember','__crossSel',sups,
+    { labelOf:m=>`${m.name} · ${m.role} (${m.enroll})` });
+  const rowsHtml=crossRows.map((r,i)=>`
+    <div class="taskrow">
+      <input placeholder="Task title" value="${esc(r.title)}" oninput="crossRows[${i}].title=this.value">
+      <input type="number" min="1" title="Estimated minutes" value="${r.estMin}" oninput="crossRows[${i}].estMin=this.value">
+      <select onchange="crossRows[${i}].priority=this.value">${PRIORITIES.map(p=>`<option ${p===r.priority?'selected':''}>${p}</option>`).join('')}</select>
+      <select onchange="crossRows[${i}].frequency=this.value">${FREQ.map(f=>`<option ${f===r.frequency?'selected':''}>${f}</option>`).join('')}</select>
+      <input type="date" value="${r.dueDate||dateStr(0)}" oninput="crossRows[${i}].dueDate=this.value">
+      <button class="btn sm red" onclick="removeCrossRow(${i})" title="Remove">×</button>
+    </div>`).join('');
+  return `<div class="card"><h2>Cross Functional Task</h2>
+    <p class="desc">Give a task to a <b>supervisor in any department</b>. The task is filed under that supervisor's department and appears in their My Tasks. You (${esc(current.name)}) keep visibility of what you raised.</p>
+    <div class="row">
+      <div class="field" style="min-width:200px"><label>Target department</label>
+        <select onchange="window.__crossSec=this.value;window.__crossSel=[];window.__crossSel_q='';render()">
+          ${SECTIONS.map(s=>`<option ${s===cSec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
+      <div class="field" style="min-width:250px"><label>Assign to supervisor(s)</label>
+        ${pickerTools('crossMember','__crossSel')}
+        <div id="crossMember" class="picker">${picker}</div></div>
+      <div class="field" style="min-width:150px"><label>Shift</label>
+        <select id="crossShift">${SHIFTS.map(s=>`<option>${s}</option>`).join('')}</select></div>
+    </div>
+    <h3>Tasks to assign</h3>
+    <div class="taskrow small muted" style="font-weight:600"><div>Task title</div><div>Est. min</div><div>Priority</div><div>Frequency</div><div>Due date</div><div></div></div>
+    ${rowsHtml}
+    <button class="btn ghost sm" onclick="addCrossRow()">+ Add another task</button>
+    <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+    <button class="btn" onclick="submitCross()">Assign cross-functional task &amp; notify</button>
+  </div>`;
+}
+function submitCross(){
+  const cSec=window.__crossSec || (SECTIONS.indexOf(current.section)>=0 ? current.section : SECTIONS[0]);
+  const supIds=(window.__crossSel||[]).slice();
+  const rows=crossRows.filter(r=>r.title.trim());
+  const shiftEl=document.getElementById('crossShift');
+  const shift=shiftEl?shiftEl.value:'General';
+  if(!supIds.length){ toast('Select at least one supervisor.'); return; }
+  if(!rows.length){ toast('Add at least one task.'); return; }
+  let made=0;
+  supIds.forEach(sid=>{
+    const sup=DB.users.find(u=>u.id===sid); if(!sup) return;
+    rows.forEach(r=>{
+      const t={id:uid('t'), code:'TSK-'+String(DB.seq.task++).padStart(4,'0'), title:r.title.trim(), desc:'',
+        section:sup.section, role:sup.role, assigneeId:sid, supervisorId:current.id, estMin:+r.estMin||0, actualMin:0,
+        priority:r.priority, shift, dueDate:r.dueDate||dateStr(0), frequency:r.frequency,
+        status:'Not Started', createdAt:Date.now(), updatedAt:Date.now(), timerStart:null, attachments:[], comments:[],
+        cross:true, assignedById:current.id, assignedByName:current.name, fromSection:current.section};
+      DB.tasks.push(t); made++;
+      notify(sid, `New cross-functional task ${t.code}`, `${t.title}\nFrom: ${current.name} (${current.section})\nEst: ${t.estMin} min · Priority: ${t.priority} · Shift: ${shift} · Due: ${t.dueDate}`);
+    });
+    notifyDept(sup.section, 'Cross-functional task received', `${current.name} (${current.section}) assigned cross-functional task(s) to ${sup.name}.`, sid);
+  });
+  save(); toast(`${made} cross-functional task(s) assigned.`); crossRows=[]; window.__crossSel=[]; window.__crossSel_q=''; go('tasks');
 }
 
 /* --------------------------------- team --------------------------------- */
