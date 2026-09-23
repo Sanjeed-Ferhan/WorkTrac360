@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.0';
+const BUILD = '3.1';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -234,10 +234,10 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 /* ---- Backend sync: Google Sheets + Apps Script ----
    Configure the Web App URL + token in the app's Sync dialog (top bar).
    With no URL set, the app runs browser-only (localStorage). */
-const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbw8BTxLpYtQ2ePzO_CXAAAu_0YQcsu7LiPV9g9rhJNdB4t3gNPHNDhZV2eONCTllpmV/exec';
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbySrUhyGN2K8Jqp8JQkvlh6uS6r2M3DIE4lZd6NJOHnEzmEHNULp7nwJCLH0-UYSzLJ/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0, API_ERR='';
-let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0, lastSheetTs=0;
+let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0, lastSheetTs=0, lastFullLoad=0;
 let saveTimer=null;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
 function apiToken(){ return DEFAULT_API_TOKEN; }
@@ -351,6 +351,7 @@ async function apiLoad(){
       try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
       lastServerVersion=dbVersion;
       if(typeof j.ts==='number') lastSheetTs=j.ts;
+      lastFullLoad=Date.now();
       API_OK=true; API_AT=Date.now(); syncing=false; return true;
     }
     API_ERR=(j&&j.error)?j.error:'unexpected server response';
@@ -376,9 +377,14 @@ async function smartSync(){
     if(j&&j.ok && typeof j.ts==='number') srvTs=j.ts;
   }catch(e){}
   const revChanged = srvRev!==null && srvRev!==+((DB.seq&&DB.seq.rev)||0);
-  /* A manual edit in the Google Sheet bumps the Drive timestamp (rev unchanged). */
-  const tsChanged = srvTs!==null && srvTs>0 && srvTs!==lastSheetTs;
-  if(!revChanged && !tsChanged) return false; /* already current */
+  /* A manual edit in the Google Sheet bumps the change stamp (rev unchanged). */
+  const tsAvail = srvTs!==null && srvTs>0;
+  const tsChanged = tsAvail && srvTs!==lastSheetTs;
+  if(!revChanged && !tsChanged){
+    /* No change signal. If the backend has no change-stamp, fall back to a
+       slower full reload so manual sheet edits are still picked up. */
+    if(tsAvail || Date.now()-lastFullLoad<60000) return false; /* already current */
+  }
   const ok=await apiLoad();
   if(ok) render();
   return ok;
