@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.1';
+const BUILD = '3.2';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -234,7 +234,7 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 /* ---- Backend sync: Google Sheets + Apps Script ----
    Configure the Web App URL + token in the app's Sync dialog (top bar).
    With no URL set, the app runs browser-only (localStorage). */
-const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbySrUhyGN2K8Jqp8JQkvlh6uS6r2M3DIE4lZd6NJOHnEzmEHNULp7nwJCLH0-UYSzLJ/exec';
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbxLbPZ581xKqqhdZkRvwC69rp6vCuBipR-aqof9ZxSTVF6D61dcjPNh7hpuf6288fPQ/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0, API_ERR='';
 let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false, orphanTaskCount=0, lastSheetTs=0, lastFullLoad=0;
@@ -1797,7 +1797,9 @@ try{ localStorage.removeItem('wt360_api_token'); }catch(e){}
 /* Migrate away from any old backend URL saved by earlier builds. */
 try{
   const OLD=['AKfycbyaYcfA1GYRXavQKhnGZLyj6IpORkqX2sRWNgsNXhRkyh8-7DFskFHsGzX4deSYMlRq',
-             'AKfycbwYbNs6mnZRAx_RejyOwNNNERriuuIlGEUooEjX3Lqxy9YfkyEGsaWUN7PjuNKboNTu'];
+             'AKfycbwYbNs6mnZRAx_RejyOwNNNERriuuIlGEUooEjX3Lqxy9YfkyEGsaWUN7PjuNKboNTu',
+             'AKfycbw8BTxLpYtQ2ePzO_CXAAAu_0YQcsu7LiPV9g9rhJNdB4t3gNPHNDhZV2eONCTllpmV',
+             'AKfycbySrUhyGN2K8Jqp8JQkvlh6uS6r2M3DIE4lZd6NJOHnEzmEHNULp7nwJCLH0-UYSzLJ'];
   const saved=localStorage.getItem('wt360_api_url');
   if(saved && OLD.some(k=>saved.indexOf(k)>=0)) localStorage.removeItem('wt360_api_url');
 }catch(e){}
