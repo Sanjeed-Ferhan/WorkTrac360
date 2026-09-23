@@ -205,7 +205,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.4';
+const BUILD = '4.5';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -1950,9 +1950,8 @@ function firstOfMonth(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'
 function daysBetween(a,b){ const A=new Date(a+'T00:00:00'), B=new Date(b+'T00:00:00'); return Math.max(1, Math.round((B-A)/86400000)+1); }
 function workloadView(){
   const avail=+DB.settings.dailyMinutes||480;
-  const defFrom=firstOfMonth(), defTo=(dateStr(-1)>defFrom?dateStr(-1):defFrom);
-  const from=window.__loadFrom||defFrom;
-  const to=window.__loadTo||defTo;
+  const from=window.__loadFrom||dateStr(0);
+  const to=window.__loadTo||dateStr(0);
   const days=daysBetween(from,to);
   const cap=avail*days;                       /* available minutes per person over the range */
   const sec=isSuper() ? (window.__loadSec||'All') : current.section;
@@ -2026,7 +2025,8 @@ function workloadView(){
         <input type="date" value="${from}" onchange="window.__loadFrom=this.value;render()"></div>
       <div class="field" style="min-width:160px"><label>To</label>
         <input type="date" value="${to}" onchange="window.__loadTo=this.value;render()"></div>
-      <button class="btn ghost" onclick="window.__loadFrom='';window.__loadTo='';render()">This month</button>
+      <button class="btn ghost" onclick="window.__loadFrom=dateStr(0);window.__loadTo=dateStr(0);render()">Today</button>
+      <button class="btn ghost" onclick="window.__loadFrom=firstOfMonth();window.__loadTo=dateStr(0);render()">This month</button>
       ${isSuper()?`<div class="field" style="min-width:200px"><label>Department</label>
         <select onchange="window.__loadSec=this.value;render()">
           <option value="All" ${sec==='All'?'selected':''}>All departments</option>
