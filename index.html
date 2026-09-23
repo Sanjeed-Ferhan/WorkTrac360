@@ -164,6 +164,14 @@
     .taskrow.small{display:none}
     .modal{padding:14px}
   }
+    .picker{border:1px solid var(--line);border-radius:8px;max-height:200px;overflow:auto;padding:4px;background:#fff}
+    .picker .pickgroup{font-weight:700;font-size:12px;color:var(--muted);padding:5px 6px 2px;position:sticky;top:0;background:#fff;z-index:1}
+    .picker .pickrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px}
+    .picker .pickrow:hover{background:var(--bg)}
+    .picker .pickrow input{margin:0;flex:0 0 auto}
+    .picker .pickrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .picktools{display:flex;gap:8px;align-items:center;margin:2px 0 4px}
+    .picktools a{font-size:12px;color:var(--blue);cursor:pointer}
 </style>
 </head>
 <body>
@@ -193,7 +201,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.5';
+const BUILD = '3.6';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -1175,15 +1183,26 @@ function assignView(){
   const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||d.role===roleSel));
   if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
   const roleOptions=roles.map(r=>`<option ${r.name===roleSel?'selected':''}>${esc(r.name)}</option>`).join('');
-  let memberOptions;
-  if(scope==='all'){
-    const secs=SECTIONS.filter(s=>members.some(m=>m.section===s));
-    memberOptions=secs.length
-      ? secs.map(s=>`<optgroup label="${esc(s)}">${members.filter(m=>m.section===s).map(m=>`<option value="${m.id}">${esc(m.name)} · ${esc(m.role)} (${esc(m.enroll)})</option>`).join('')}</optgroup>`).join('')
-      : '<option value="">— no approved employees —</option>';
+  if(!Array.isArray(window.__assignSel)) window.__assignSel=[];
+  const selSet=new Set(window.__assignSel);
+  const q=(window.__assignSearch||'').toLowerCase().trim();
+  const hayOf=m=>`${m.name||''} ${m.role||''} ${m.enroll||''} ${m.section||''}`.toLowerCase();
+  let memberPicker;
+  if(!members.length){
+    memberPicker='<div class="small muted" style="padding:8px 2px">— no approved employees —</div>';
   }else{
-    memberOptions=members.length?members.map(m=>`<option value="${m.id}">${esc(m.name)} (${esc(m.enroll)})</option>`).join('')
-      :'<option value="">— no member in this role —</option>';
+    const groups = scope==='all' ? SECTIONS.filter(s=>members.some(m=>m.section===s)) : [null];
+    memberPicker=groups.map(s=>{
+      const list=members.filter(m=> s? m.section===s : true);
+      const anyMatch=!q||list.some(m=>hayOf(m).indexOf(q)>=0);
+      const head=s?`<div class="pickgroup"${anyMatch?'':' style="display:none"'}>${esc(s)}</div>`:'';
+      const rows=list.map(m=>{
+        const label=scope==='all'?`${m.name} · ${m.role} (${m.enroll})`:`${m.name} (${m.enroll})`;
+        const match=!q||hayOf(m).indexOf(q)>=0;
+        return `<label class="pickrow" data-hay="${esc(hayOf(m))}"${match?'':' style="display:none"'}><input type="checkbox" value="${m.id}" ${selSet.has(m.id)?'checked':''} onchange="toggleAssignMember('${m.id}',this.checked)"><span>${esc(label)}</span></label>`;
+      }).join('');
+      return head+rows;
+    }).join('');
   }
   const freqSel=window.__dictFreq||'All';
   const dictMatch=dict.filter(d=>freqSel==='All'||d.frequency===freqSel);
@@ -1203,17 +1222,20 @@ function assignView(){
     <p class="desc">${scope==='all'?'<b>Any employee mode</b> — pick anyone across all departments and roles. Each task is filed under that employee\'s own department and role.':'Pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.'}</p>
     ${isSuper()?`<div class="row" style="margin-bottom:6px">
       <label class="small" style="display:flex;align-items:center;gap:6px;cursor:pointer">
-        <input type="checkbox" ${scope==='all'?'checked':''} onchange="window.__assignScope=this.checked?'all':'dept';assignRows=[];render()">
+        <input type="checkbox" ${scope==='all'?'checked':''} onchange="window.__assignScope=this.checked?'all':'dept';assignRows=[];window.__assignSel=[];window.__assignSearch='';render()">
         Assign to any employee (all departments &amp; roles)
       </label></div>`:''}
     <div class="row">
       ${isSuper() && scope!=='all'?`<div class="field" style="min-width:180px"><label>Department</label>
-        <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];render()">
+        <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];window.__assignSel=[];window.__assignSearch='';render()">
           ${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
       ${scope!=='all'?`<div class="field" style="min-width:190px"><label>Role</label>
-        <select onchange="window.__assignRole=this.value;render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>`:''}
-      <div class="field" style="min-width:250px"><label>Assign to member(s) — Ctrl/Cmd-click for multiple</label>
-        <select id="assignMember" multiple size="${scope==='all'?6:3}">${memberOptions}</select></div>
+        <select onchange="window.__assignRole=this.value;window.__assignSel=[];window.__assignSearch='';render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>`:''}
+      <div class="field" style="min-width:250px"><label>Assign to member(s)</label>
+        <input id="assignSearch" placeholder="Search name / role / ID…" value="${esc(window.__assignSearch||'')}" oninput="filterAssignList()">
+        <div class="picktools"><a onclick="selectAllAssignShown(true)">Select all shown</a><a onclick="selectAllAssignShown(false)">Clear</a><span class="small muted" id="assignSelCount">${(window.__assignSel||[]).length?(window.__assignSel.length+' selected'):''}</span></div>
+        <div id="assignMember" class="picker">${memberPicker}</div>
+      </div>
       <div class="field" style="min-width:150px"><label>Shift</label>
         <select id="assignShift">${SHIFTS.map(s=>`<option>${s}</option>`).join('')}</select></div>
     </div>
@@ -1237,6 +1259,41 @@ function assignView(){
   </div>`;
 }
 function addRow(){ assignRows.push({title:'',estMin:30,priority:'Medium',frequency:'One-time'}); render(); }
+function toggleAssignMember(id,on){
+  if(!Array.isArray(window.__assignSel)) window.__assignSel=[];
+  if(on){ if(!window.__assignSel.includes(id)) window.__assignSel.push(id); }
+  else { window.__assignSel=window.__assignSel.filter(x=>x!==id); }
+  updateAssignCount();
+}
+function updateAssignCount(){
+  const el=document.getElementById('assignSelCount');
+  if(el){ const n=(window.__assignSel||[]).length; el.textContent=n?n+' selected':''; }
+}
+function filterAssignList(){
+  const box=document.getElementById('assignSearch');
+  window.__assignSearch=box?box.value:'';
+  const q=(window.__assignSearch||'').toLowerCase().trim();
+  const list=document.getElementById('assignMember'); if(!list) return;
+  list.querySelectorAll('.pickrow').forEach(el=>{
+    const hay=el.getAttribute('data-hay')||'';
+    el.style.display=(!q||hay.indexOf(q)>=0)?'':'none';
+  });
+  list.querySelectorAll('.pickgroup').forEach(g=>{
+    let n=0,nx=g.nextElementSibling;
+    while(nx && !nx.classList.contains('pickgroup')){ if(nx.classList.contains('pickrow') && nx.style.display!=='none') n++; nx=nx.nextElementSibling; }
+    g.style.display=n?'':'none';
+  });
+}
+function selectAllAssignShown(on){
+  const list=document.getElementById('assignMember'); if(!list) return;
+  list.querySelectorAll('.pickrow').forEach(el=>{
+    if(el.style.display==='none') return;
+    const cb=el.querySelector('input'); if(!cb) return;
+    if(on && !cb.checked){ cb.checked=true; toggleAssignMember(cb.value,true); }
+    if(!on && cb.checked){ cb.checked=false; toggleAssignMember(cb.value,false); }
+  });
+  updateAssignCount();
+}
 function loadFromDict(){
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
   const role = window.__assignRole || '';
@@ -1262,9 +1319,8 @@ function saveDictFromRows(){
 function submitAssign(){
   const scope = isSuper() ? (window.__assignScope || 'dept') : 'dept';
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section, role=window.__assignRole||'';
-  const sel=document.getElementById('assignMember');
   const shift=document.getElementById('assignShift').value;
-  const memberIds=Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean);
+  const memberIds=(window.__assignSel||[]).slice();
   const valid=assignRows.filter(r=>r.title.trim());
   if(scope!=='all' && !role){ toast('Select a role.'); return; }
   if(!memberIds.length){ toast('Select at least one member.'); return; }
@@ -1287,7 +1343,7 @@ function submitAssign(){
     const secs=new Set(memberIds.map(mid=>{ const m=DB.users.find(u=>u.id===mid); return m?m.section:null; }).filter(Boolean));
     secs.forEach(s=>notifyDept(s, 'Tasks assigned', `${current.name} assigned task(s) to staff in ${s}.`, current.id));
   }
-  save(); toast(`${valid.length} task(s) assigned to ${memberIds.length} member(s).`); assignRows=[]; go('tasks');
+  save(); toast(`${valid.length} task(s) assigned to ${memberIds.length} member(s).`); assignRows=[]; window.__assignSel=[]; window.__assignSearch=''; go('tasks');
 }
 
 /* --------------------------------- team --------------------------------- */
