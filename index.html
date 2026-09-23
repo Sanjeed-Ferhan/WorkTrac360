@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.7';
+const BUILD = '2.8';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -1067,14 +1067,29 @@ function setFilter(s){ taskFilter=s; render(); }
 let assignRows=[];
 function assignView(){
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
+  const scope = isSuper() ? (window.__assignScope || 'dept') : 'dept';
   const roles=rolesOf(sec);
   const roleSel=window.__assignRole || (roles[0]&&roles[0].name) || '';
-  const members=DB.users.filter(u=>u.type==='member' && u.section===sec && u.role===roleSel && u.status==='approved');
+  let members;
+  if(scope==='all'){
+    members=DB.users.filter(u=>u.type==='member' && u.status==='approved')
+      .sort((a,b)=>((a.section+a.name).localeCompare(b.section+b.name)));
+  }else{
+    members=DB.users.filter(u=>u.type==='member' && u.section===sec && u.role===roleSel && u.status==='approved');
+  }
   const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||d.role===roleSel));
   if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
   const roleOptions=roles.map(r=>`<option ${r.name===roleSel?'selected':''}>${esc(r.name)}</option>`).join('');
-  const memberOptions=members.length?members.map(m=>`<option value="${m.id}">${esc(m.name)} (${esc(m.enroll)})</option>`).join('')
-    :'<option value="">— no member in this role —</option>';
+  let memberOptions;
+  if(scope==='all'){
+    const secs=SECTIONS.filter(s=>members.some(m=>m.section===s));
+    memberOptions=secs.length
+      ? secs.map(s=>`<optgroup label="${esc(s)}">${members.filter(m=>m.section===s).map(m=>`<option value="${m.id}">${esc(m.name)} · ${esc(m.role)} (${esc(m.enroll)})</option>`).join('')}</optgroup>`).join('')
+      : '<option value="">— no approved employees —</option>';
+  }else{
+    memberOptions=members.length?members.map(m=>`<option value="${m.id}">${esc(m.name)} (${esc(m.enroll)})</option>`).join('')
+      :'<option value="">— no member in this role —</option>';
+  }
   const freqSel=window.__dictFreq||'All';
   const dictMatch=dict.filter(d=>freqSel==='All'||d.frequency===freqSel);
   const dictPreview=dictMatch.length?dictMatch.map(d=>`<div class="small" style="display:flex;justify-content:space-between;border-bottom:1px solid #eef1f4;padding:4px 0">
@@ -1090,19 +1105,24 @@ function assignView(){
       <button class="btn sm red" onclick="removeRow(${i})" title="Remove">×</button>
     </div>`).join('');
   return `<div class="card"><h2>Assign Task</h2>
-    <p class="desc">${esc(sec)} — pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.</p>
+    <p class="desc">${scope==='all'?'<b>Any employee mode</b> — pick anyone across all departments and roles. Each task is filed under that employee\'s own department and role.':'Pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.'}</p>
+    ${isSuper()?`<div class="row" style="margin-bottom:6px">
+      <label class="small" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" ${scope==='all'?'checked':''} onchange="window.__assignScope=this.checked?'all':'dept';assignRows=[];render()">
+        Assign to any employee (all departments &amp; roles)
+      </label></div>`:''}
     <div class="row">
-      ${isSuper()?`<div class="field" style="min-width:180px"><label>Department</label>
+      ${isSuper() && scope!=='all'?`<div class="field" style="min-width:180px"><label>Department</label>
         <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];render()">
           ${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
-      <div class="field" style="min-width:190px"><label>Role</label>
-        <select onchange="window.__assignRole=this.value;render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>
+      ${scope!=='all'?`<div class="field" style="min-width:190px"><label>Role</label>
+        <select onchange="window.__assignRole=this.value;render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>`:''}
       <div class="field" style="min-width:250px"><label>Assign to member(s) — Ctrl/Cmd-click for multiple</label>
-        <select id="assignMember" multiple size="3">${memberOptions}</select></div>
+        <select id="assignMember" multiple size="${scope==='all'?6:3}">${memberOptions}</select></div>
       <div class="field" style="min-width:150px"><label>Shift</label>
         <select id="assignShift">${SHIFTS.map(s=>`<option>${s}</option>`).join('')}</select></div>
     </div>
-    <h3>Load from dictionary — ${esc(roleSel||'this role')}</h3>
+    ${scope!=='all'?`<h3>Load from dictionary — ${esc(roleSel||'this role')}</h3>
     <div class="row">
       <div class="field" style="min-width:190px"><label>Frequency</label>
         <select onchange="window.__dictFreq=this.value;render()">
@@ -1111,7 +1131,7 @@ function assignView(){
         </select></div>
       <button class="btn" onclick="loadFromDict()">⬇ Load ${dictMatch.length} task(s)</button>
     </div>
-    <div style="margin:10px 0 4px">${dictPreview}</div>
+    <div style="margin:10px 0 4px">${dictPreview}</div>`:''}
     <h3>Tasks to assign</h3>
     <div class="taskrow small muted" style="font-weight:600"><div>Task title</div><div>Est. min</div><div>Priority</div><div>Frequency</div><div>Due date</div><div></div></div>
     ${rowsHtml}
@@ -1145,22 +1165,33 @@ function saveDictFromRows(){
   save(); toast(n+' task(s) saved to the dictionary.'); render();
 }
 function submitAssign(){
+  const scope = isSuper() ? (window.__assignScope || 'dept') : 'dept';
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section, role=window.__assignRole||'';
   const sel=document.getElementById('assignMember');
   const shift=document.getElementById('assignShift').value;
   const memberIds=Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean);
   const valid=assignRows.filter(r=>r.title.trim());
-  if(!role){ toast('Select a role.'); return; }
+  if(scope!=='all' && !role){ toast('Select a role.'); return; }
   if(!memberIds.length){ toast('Select at least one member.'); return; }
   if(!valid.length){ toast('Add at least one task.'); return; }
-  memberIds.forEach(mid=>{ valid.forEach(r=>{
-    const t={id:uid('t'), code:'TSK-'+String(DB.seq.task++).padStart(4,'0'), title:r.title.trim(), desc:'',
-      section:sec, role, assigneeId:mid, supervisorId:current.id, estMin:+r.estMin||0, actualMin:0,
-      priority:r.priority, shift, dueDate:r.dueDate||dateStr(0), frequency:r.frequency,
-      status:'Not Started', createdAt:Date.now(), updatedAt:Date.now(), timerStart:null, attachments:[], comments:[]};
-    DB.tasks.push(t);
-    notify(mid, `New task ${t.code}`, `${t.title}\nRole: ${role} · Est: ${t.estMin} min · Priority: ${t.priority} · Shift: ${shift} · Due: ${t.dueDate}\nAssigned by ${current.name}.`);
-  }); });
+  memberIds.forEach(mid=>{
+    const mem = scope==='all' ? DB.users.find(u=>u.id===mid) : null;
+    const tSec = (scope==='all' && mem) ? mem.section : sec;
+    const tRole = (scope==='all' && mem) ? mem.role : role;
+    valid.forEach(r=>{
+      const t={id:uid('t'), code:'TSK-'+String(DB.seq.task++).padStart(4,'0'), title:r.title.trim(), desc:'',
+        section:tSec, role:tRole, assigneeId:mid, supervisorId:current.id, estMin:+r.estMin||0, actualMin:0,
+        priority:r.priority, shift, dueDate:r.dueDate||dateStr(0), frequency:r.frequency,
+        status:'Not Started', createdAt:Date.now(), updatedAt:Date.now(), timerStart:null, attachments:[], comments:[]};
+      DB.tasks.push(t);
+      notify(mid, `New task ${t.code}`, `${t.title}\nRole: ${tRole} · Est: ${t.estMin} min · Priority: ${t.priority} · Shift: ${shift} · Due: ${t.dueDate}\nAssigned by ${current.name}.`);
+    });
+  });
+  if(scope==='all'){
+    /* Alert the department supervisor(s) of each affected department. */
+    const secs=new Set(memberIds.map(mid=>{ const m=DB.users.find(u=>u.id===mid); return m?m.section:null; }).filter(Boolean));
+    secs.forEach(s=>notifyDept(s, 'Tasks assigned', `${current.name} assigned task(s) to staff in ${s}.`, current.id));
+  }
   save(); toast(`${valid.length} task(s) assigned to ${memberIds.length} member(s).`); assignRows=[]; go('tasks');
 }
 
