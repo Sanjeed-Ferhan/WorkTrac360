@@ -201,7 +201,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.0';
+const BUILD = '4.1';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -596,6 +596,7 @@ function visibleTasks(u){
 function isMyTask(t,u){
   u=u||current; if(!t||!u) return false;
   if(t.assigneeId===u.id) return true;
+  if(t.assignedById===u.id) return true;   /* cross-functional task I raised */
   const me=String(u.enroll||'').trim().toLowerCase(); if(!me) return false;
   const a=DB.users.find(x=>x.id===t.assigneeId);
   return !!(a && String(a.enroll||'').trim().toLowerCase()===me);
