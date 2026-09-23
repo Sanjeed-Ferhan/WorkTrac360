@@ -615,7 +615,7 @@ function ensureRole(sec, name){
 
 let current=null, view='dashboard', taskFilter='All', authMode='signin', authMsg=null;
 let dateBasis='due', dateFrom=dateStr(0), dateTo=dateStr(0);
-let dashPeriod='month';   /* today | week | month */
+let dashPeriod='today';   /* today | week | month */
 function periodRange(){
   const to=dateStr(0);
   if(dashPeriod==='today') return {from:to,to:to};
