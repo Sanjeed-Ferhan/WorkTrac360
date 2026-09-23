@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.3';
+const BUILD = '2.4';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -237,7 +237,7 @@ function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw)
 const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbwYbNs6mnZRAx_RejyOwNNNERriuuIlGEUooEjX3Lqxy9YfkyEGsaWUN7PjuNKboNTu/exec';
 const DEFAULT_API_TOKEN='CHANGE_ME_worktrac_secret';
 let API_OK=false, API_AT=0;
-let syncing=false, dbVersion=0, lastServerVersion=0;
+let syncing=false, dbVersion=0, lastServerVersion=0, skipFlush=false;
 let saveTimer=null;
 function apiUrl(){ const v=localStorage.getItem('wt360_api_url'); return (v===null?DEFAULT_API_URL:v).trim(); }
 function apiToken(){ return DEFAULT_API_TOKEN; }
@@ -258,9 +258,19 @@ function isBlankDB(){
 function pushNow(){
   const u=apiUrl(); if(!u) return;
   if(syncing || isBlankDB()) return;
-  const payload={token:apiToken(),action:'save',db:DB,sentVersion:dbVersion};
+  const payload={token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0};
   fetch(u,{method:'POST',body:JSON.stringify(payload)})
-    .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); if(j&&j.ok) lastServerVersion=dbVersion; })
+    .then(r=>r.json()).then(j=>{
+      API_OK=!!(j&&j.ok); API_AT=Date.now();
+      if(j&&j.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=j.rev; }
+      else if(j&&j.error==='stale'){
+        /* Another tab/device saved first — reload instead of overwriting.
+           Skip the flush so our outdated copy can't clobber their newer save. */
+        DB.seq=DB.seq||{}; DB.seq.rev=j.rev||0;
+        skipFlush=true;
+        apiLoad().then(ok=>{ if(ok){ render(); toast('Data re-synced from the latest save.'); } });
+      }
+    })
     .catch(()=>{ API_OK=false; });
 }
 /* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
@@ -285,12 +295,15 @@ async function apiLoad(){
   clearTimeout(saveTimer);
   /* Flush pending local changes BEFORE loading, and wait for it to finish
      so a stale/blank payload can never land after fresh data. */
-  if(dbVersion > lastServerVersion && !isBlankDB()){
+  if(!skipFlush && dbVersion > lastServerVersion && !isBlankDB()){
     try{
-      await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion})});
-      lastServerVersion=dbVersion;
+      const fr=await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion,baseRev:(DB.seq&&DB.seq.rev)||0})});
+      const fj=await fr.json();
+      if(fj&&fj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=fj.rev; }
+      else if(fj&&fj.error==='stale'){ DB.seq=DB.seq||{}; DB.seq.rev=fj.rev||0; skipFlush=true; }
     }catch(e){}
   }
+  skipFlush=false;
   try{
     const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
     const j=await r.json();
