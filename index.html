@@ -169,7 +169,7 @@
     .picker .pickrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px}
     .picker .pickrow:hover{background:var(--bg)}
     .picker .pickrow input{margin:0;flex:0 0 auto}
-    .picker .pickrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .picker .pickrow span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .picktools{display:flex;gap:8px;align-items:center;margin:2px 0 4px}
     .picktools a{font-size:12px;color:var(--blue);cursor:pointer}
 </style>
@@ -201,7 +201,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.6';
+const BUILD = '3.7';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
