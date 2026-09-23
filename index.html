@@ -166,9 +166,9 @@
   }
     .picker{border:1px solid var(--line);border-radius:8px;max-height:200px;overflow:auto;padding:4px;background:#fff}
     .picker .pickgroup{font-weight:700;font-size:12px;color:var(--muted);padding:5px 6px 2px;position:sticky;top:0;background:#fff;z-index:1}
-    .picker .pickrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px}
+    .picker .pickrow{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:400;color:#243b53}
     .picker .pickrow:hover{background:var(--bg)}
-    .picker .pickrow input{margin:0;flex:0 0 auto}
+    .picker .pickrow input[type=checkbox]{width:auto;flex:0 0 auto;padding:0;margin:0;border-radius:0;background:transparent}
     .picker .pickrow span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .picktools{display:flex;gap:8px;align-items:center;margin:2px 0 4px}
     .picktools a{font-size:12px;color:var(--blue);cursor:pointer}
@@ -201,7 +201,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '3.7';
+const BUILD = '3.8';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
