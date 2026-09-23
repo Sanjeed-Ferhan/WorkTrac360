@@ -1,6 +1,6 @@
 /* WorkTrac360 service worker — offline app shell.
-   v3: improved caching, offline fallback, update-on-reload. */
-const CACHE = "wt360-v3";
+   v4: blank-DB write guard, stale cache flush. */
+const CACHE = "wt360-v4";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {

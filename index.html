@@ -193,7 +193,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '2.2';
+const BUILD = '2.3';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -245,15 +245,23 @@ function save(){
   try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
   const u=apiUrl(); if(!u) return;
   if(syncing) return;
+  if(isBlankDB()) return;
   dbVersion++;
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
-    if(syncing) return;
-    const payload={token:apiToken(),action:'save',db:DB,sentVersion:dbVersion};
-    fetch(u,{method:'POST',body:JSON.stringify(payload)})
-      .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); lastServerVersion=dbVersion; })
-      .catch(()=>{ API_OK=false; });
-  }, 500);
+  saveTimer=setTimeout(pushNow, 500);
+}
+/* A blank/empty DB must never reach the sheet — it would wipe everything.
+   Legitimate state always has at least one user (the superadmin). */
+function isBlankDB(){
+  return (DB.users||[]).length===0 && (DB.tasks||[]).length===0;
+}
+function pushNow(){
+  const u=apiUrl(); if(!u) return;
+  if(syncing || isBlankDB()) return;
+  const payload={token:apiToken(),action:'save',db:DB,sentVersion:dbVersion};
+  fetch(u,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.json()).then(j=>{ API_OK=!!(j&&j.ok); API_AT=Date.now(); if(j&&j.ok) lastServerVersion=dbVersion; })
+    .catch(()=>{ API_OK=false; });
 }
 /* Google Sheets returns numeric enroll IDs as numbers and dates as Date objects.
    Normalise them back to the types the app expects. */
@@ -275,15 +283,26 @@ async function apiLoad(){
   const u=apiUrl(); if(!u) return false;
   syncing=true;
   clearTimeout(saveTimer);
-  /* Flush any pending local changes to the server before overwriting DB */
-  if(dbVersion > lastServerVersion){
-    fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion})})
-      .then(r=>r.json()).then(()=>{ lastServerVersion=dbVersion; }).catch(()=>{});
+  /* Flush pending local changes BEFORE loading, and wait for it to finish
+     so a stale/blank payload can never land after fresh data. */
+  if(dbVersion > lastServerVersion && !isBlankDB()){
+    try{
+      await fetch(u,{method:'POST',body:JSON.stringify({token:apiToken(),action:'save',db:DB,sentVersion:dbVersion})});
+      lastServerVersion=dbVersion;
+    }catch(e){}
   }
   try{
     const r=await fetch(u+'?action=load&token='+encodeURIComponent(apiToken()));
     const j=await r.json();
     if(j&&j.ok&&j.db){
+      const srv=(k)=>Array.isArray(j.db[k])?j.db[k]:[];
+      const serverEmpty = srv('users').length===0 && srv('tasks').length===0;
+      /* Never let an empty server response destroy local data. */
+      if(serverEmpty && !isBlankDB()){
+        syncing=false;
+        pushNow();
+        return true;
+      }
       /* Preserve local pending users and their notifications that haven't
          been saved to the sheet yet (race-condition safety net). */
       const localPending=(DB.users||[]).filter(u=>u.status==='pending');
