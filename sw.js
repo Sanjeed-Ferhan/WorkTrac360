@@ -1,6 +1,6 @@
 /* WorkTrac360 service worker — offline app shell.
-   v5: device-backup/Restore option removed. */
-const CACHE = "wt360-v7";
+   v6: pending-approval resurrection + save-queue fixes. */
+const CACHE = "wt360-v8";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {

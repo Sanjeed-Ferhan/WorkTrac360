@@ -267,8 +267,10 @@ function apiToken(){ return DEFAULT_API_TOKEN; }
 function save(){
   try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
   const u=apiUrl(); if(!u) return;
-  if(syncing) return;
   if(isBlankDB()) return;
+  /* A load is in flight. Queue the change instead of dropping it — otherwise the
+     in-flight load overwrites it with the server copy and the edit is lost. */
+  if(syncing){ dbVersion++; savePending=true; return; }
   dbVersion++;
   setSyncStatus('saving');
   clearTimeout(saveTimer);
@@ -420,7 +422,16 @@ async function apiLoad(){
       });
       DB.settings=Object.assign({}, localRef.settings||{}, DB.settings||{});
       const serverUserIds=new Set(DB.users.map(u=>u.id));
-      localPending.forEach(u=>{ if(!serverUserIds.has(u.id)) DB.users.push(u); });
+      /* Re-add only pending registrations this device made that the server has
+         never seen. Never resurrect one whose enroll already exists under any
+         status (that is how rejected people kept coming back as pending). */
+      const enrolls=new Set(DB.users.map(u=>String(u.enroll==null?'':u.enroll).trim().toLowerCase()));
+      localPending.forEach(u=>{
+        if(serverUserIds.has(u.id)) return;
+        const e=String(u.enroll==null?'':u.enroll).trim().toLowerCase();
+        if(e && enrolls.has(e)) return;
+        DB.users.push(u); enrolls.add(e);
+      });
       const serverNotifyIds=new Set(DB.notify.map(n=>n.id));
       localPendingNotify.forEach(n=>{ if(!serverNotifyIds.has(n.id)) DB.notify.push(n); });
       /* Keep local tombstones so deletions made here are never undone by a
@@ -431,18 +442,22 @@ async function apiLoad(){
          notification exists but the referenced user is missing, recreate them. */
       DB.notify.forEach(n=>{
         if(n.title!=='Registration pending') return;
-        const m=n.body.match(/^(.+?) \((\S+?)\) registered as (.+?) in (.+?)\.\s*$/);
+        const body=String(n.body||'').replace(/\s*Approve or reject in Team\.\s*$/,'');
+        const m=body.match(/^(.+?) \((\S+?)\) registered as (.+?) in (.+?)\.\s*$/);
         if(!m) return;
         const [,name,enroll,role,section]=m;
-        if(!DB.users.some(u=>String(u.enroll)===enroll)){
-          DB.users.push({id:uid('u'),enroll,name,section,role,type:'member',status:'pending'});
+        const e=String(enroll==null?'':enroll).trim().toLowerCase();
+        if(!DB.users.some(u=>String(u.enroll==null?'':u.enroll).trim().toLowerCase()===e)){
+          DB.users.push({id:uid('u'),enroll,name,section,role,type:'member',status:'pending',updatedAt:Date.now()});
         }
       });
       try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
       lastServerVersion=dbVersion;
       if(typeof j.ts==='number') lastServerTs=j.ts;
       lastFullLoad=Date.now();
-      API_OK=true; API_AT=Date.now(); syncing=false; restoreSession(); return true;
+      API_OK=true; API_AT=Date.now(); syncing=false; restoreSession();
+      if(savePending){ savePending=false; syncSave(); }   /* flush edits made during the load */
+      return true;
     }
     API_ERR=(j&&j.error)?j.error:'unexpected server response';
     API_OK=false; syncing=false;
@@ -693,7 +708,7 @@ function registerSuperAdmin(){
   if(!name||!enroll){ toast('Please fill name and enroll ID.'); return; }
   if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ toast('This enroll ID is already registered.'); return; }
   const anySuper=DB.users.some(u=>u.type==='superadmin' && u.status==='approved');
-  DB.users.push({id:uid('u'), enroll, name, section, role, type:'superadmin', status: anySuper?'pending':'approved'});
+  DB.users.push({id:uid('u'), enroll, name, section, role, type:'superadmin', status: anySuper?'pending':'approved', updatedAt:Date.now()});
   if(anySuper){
     DB.users.filter(u=>u.type==='superadmin'&&u.status==='approved').forEach(s=>notify(s.id,'Super Admin registration',`${name} (${enroll}) requested Super Admin access. Approve or reject in Team.`));
     authMsg='Request submitted. An existing Super Admin must approve it before you can sign in.';
@@ -732,11 +747,11 @@ function selfRegister(){
   if(type!=='supervisor') type='member';
 
   if(type==='supervisor'){
-    DB.users.push({id:uid('u'), enroll, name, section, role, type, status:'approved'});
+    DB.users.push({id:uid('u'), enroll, name, section, role, type, status:'approved', updatedAt:Date.now()});
     notifyDept(section, 'New supervisor', `${name} (${enroll}) joined ${section} as ${role}.`, null);
     save(); authMsg='Supervisor account created. You can sign in now.'; authMode='signin'; render(); return;
   }
-  DB.users.push({id:uid('u'), enroll, name, section, role, type, status:'pending'});
+  DB.users.push({id:uid('u'), enroll, name, section, role, type, status:'pending', updatedAt:Date.now()});
   const sups=deptSupervisors(section);
   sups.forEach(s=>notify(s.id, 'Registration pending', `${name} (${enroll}) registered as ${role} in ${section}. Approve or reject in Team.`));
   save();
@@ -1604,17 +1619,20 @@ function addMember(){
   if(!name||!enroll||!role){ toast('Please fill name, enroll and role.'); return; }
   if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ toast('This enroll ID already exists.'); return; }
   ensureRole(sec, role);
-  DB.users.push({id:uid('u'), enroll, name, section:sec, role, type, status:'approved'});
+  DB.users.push({id:uid('u'), enroll, name, section:sec, role, type, status:'approved', updatedAt:Date.now()});
   notifyDept(sec, 'Team update', `${name} (${enroll}) added as ${type==='superadmin'?'Super Admin':(type==='supervisor'?'Supervisor':'Member')} — ${role}.`, current.id);
   save(); toast(`${name} added to ${sec}.`); render();
 }
 function approveUser(id, ok){
-  const u=DB.users.find(x=>x.id===id); if(!u) return;
+  const u=DB.users.find(x=>x.id===id);
+  if(!u){ toast('That person is no longer in the list — refreshing.'); syncNow(); return; }
   if(!isSuper() && u.section!==current.section){ toast('Not your department.'); return; }
   u.status=ok?'approved':'rejected';
+  u.updatedAt=Date.now();   /* makes this change win the next merge */
   notify(u.id, `Registration ${ok?'approved':'rejected'}`, `Your registration for ${u.section} (${u.role}) was ${ok?'approved':'rejected'} by ${current.name}.`);
   save(); render();
 }
+function syncNow(){ if(typeof smartSync==='function'){ syncing=false; smartSync(); } else render(); }
 function removeUser(id){ const u=DB.users.find(x=>x.id===id); if(!u) return; if(!confirm('Remove '+u.name+'?')) return;
   tombstone(id); DB.users=DB.users.filter(x=>x.id!==id); save(); render(); }
 
@@ -1708,7 +1726,7 @@ function importCSV(input){
       if(!name || !enroll){ skipped++; continue; }
       if(DB.users.some(u=>u.enroll.toLowerCase()===enroll.toLowerCase())){ skipped++; continue; }
       ensureRole(teamSec(), role);
-      DB.users.push({id:uid('u'), enroll, name, section:teamSec(), role, type, status:'approved'});
+      DB.users.push({id:uid('u'), enroll, name, section:teamSec(), role, type, status:'approved', updatedAt:Date.now()});
       if(type==='supervisor') sup++;
       added++;
     }
