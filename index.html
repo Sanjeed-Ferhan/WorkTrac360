@@ -332,15 +332,19 @@ async function syncSave(){
   if(saving){ savePending=true; return; }   /* queue it instead of dropping the change */
   saving=true; setSyncStatus('saving');
   try{
-    const j=await sbRpc('wt360_load',{p_token:apiToken()});
-    if(!(j&&j.ok&&j.db)){ API_OK=false; API_ERR='server data unreadable - save skipped'; }
-    else{
-      mergeRemote(j.db);
-      if(!isBlankDB()){
-        const pj=await sbRpc('wt360_save',{p_token:apiToken(),p_db:DB,p_sent:dbVersion,p_base:(DB.seq&&DB.seq.rev)||0});
-        if(pj&&pj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=pj.rev; if(typeof pj.ts==='number') lastServerTs=pj.ts; API_OK=true; API_AT=Date.now(); API_ERR=''; }
-        else { API_OK=false; API_ERR=(pj&&pj.error)||'save failed'; }
-      }
+    /* The pre-save load is a safety net, not a requirement — the server merges
+       per record. Reading the whole 3 MB DB on every save overloaded the database,
+       so only do it if we have not loaded recently. */
+    if(Date.now()-lastFullLoad > 60000){
+      try{
+        const j=await sbRpc('wt360_load',{p_token:apiToken()});
+        if(j&&j.ok&&j.db){ mergeRemote(j.db); lastFullLoad=Date.now(); }
+      }catch(e){}
+    }
+    if(!isBlankDB()){
+      const pj=await sbRpc('wt360_save',{p_token:apiToken(),p_db:DB,p_sent:dbVersion,p_base:(DB.seq&&DB.seq.rev)||0});
+      if(pj&&pj.ok){ lastServerVersion=dbVersion; if(DB.seq) DB.seq.rev=pj.rev; if(typeof pj.ts==='number') lastServerTs=pj.ts; API_OK=true; API_AT=Date.now(); API_ERR=''; }
+      else { API_OK=false; API_ERR=(pj&&pj.error)||'save failed'; }
     }
   }catch(e){ API_OK=false; API_ERR=String((e&&e.message)||e); }
   saving=false; setSyncStatus(API_OK?'saved':'error');
@@ -507,7 +511,7 @@ function scheduleSyncLoop(){
   pollTimer=setInterval(()=>{
     if(!current || !apiUrl() || document.hidden) return;
     smartSync();
-  }, 8000);
+  }, 60000);   /* 60s: a full load is ~3 MB, polling it every 8s overloaded the database */
 }
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden && current && apiUrl()) smartSync(); });
 window.addEventListener('focus',()=>{ if(current && apiUrl()) smartSync(); });

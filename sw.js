@@ -1,6 +1,6 @@
 /* WorkTrac360 service worker — offline app shell.
-   v6: pending-approval resurrection + save-queue fixes. */
-const CACHE = "wt360-v8";
+   v7: 60s poll, no full load before save (load cut ~10x). */
+const CACHE = "wt360-v9";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {
