@@ -348,6 +348,23 @@ function rebuildServer(){
   DB.tasks.forEach(x=>SERVER.tasks[x.id]=sig(taskToRow(x)));
   DB.notify.forEach(x=>SERVER.notify[x.id]=sig(notifyToRow(x)));
 }
+/* ids carry a table prefix (u/r/d/t/n) — used to flush local deletions server-side. */
+const TBL_BY_PREFIX={u:'users',r:'roles',d:'dict',t:'tasks',n:'notify'};
+async function flushTombs(){
+  const tombs=(DB.tomb||[]).filter(t=>t&&t.id);
+  if(!tombs.length) return;
+  const byTbl={};
+  tombs.forEach(t=>{ const tb=TBL_BY_PREFIX[String(t.id)[0]]; if(tb){ (byTbl[tb]=byTbl[tb]||[]).push(String(t.id)); } });
+  const done=new Set();
+  for(const tb of Object.keys(byTbl)){
+    const ids=byTbl[tb];
+    const {error}=await sb.from(tb).delete().in('id',ids);
+    if(error) throw new Error(tb+' delete: '+error.message);
+    ids.forEach(id=>{ done.add(id); if(SERVER[tb]) delete SERVER[tb][id]; });
+  }
+  DB.tomb=(DB.tomb||[]).filter(t=>!(t&&done.has(String(t.id))));
+  try{ if(DB.settings&&DB.settings.tomb){ DB.settings.tomb=JSON.stringify(JSON.parse(DB.settings.tomb).filter(id=>!done.has(String(id)))); } }catch(e){}
+}
 /* Push only rows that changed since the last sync, and delete rows removed locally. */
 async function syncSave(){
   if(!sb || !loaded) return;
@@ -355,6 +372,7 @@ async function syncSave(){
   if(saving){ savePending=true; return; }
   saving=true; setSyncStatus('saving');
   try{
+    await flushTombs();
     await pushTable('users',  DB.users,  userToRow);
     await pushTable('roles',  DB.roles,  roleToRow);
     await pushTable('dict',   DB.dict,   dictToRow);
@@ -406,6 +424,20 @@ function applyTombs(){
   ids.forEach(id=>{ if(!(DB.tomb||[]).some(t=>t.id===id)) DB.tomb.push({id:id, at:0}); });
   DB.settings=DB.settings||{}; DB.settings.tomb=JSON.stringify(Array.from(ids));
 }
+/* PostgREST returns at most 1000 rows per request — page through to get all. */
+async function fetchAll(table, ord, apply){
+  const page=1000; let from=0, out=[];
+  for(;;){
+    let q=sb.from(table).select('*').order(ord||'id',{ascending:true}).range(from, from+page-1);
+    if(apply) q=apply(q);
+    const {data,error}=await q;
+    if(error) throw new Error(table+': '+error.message);
+    out=out.concat(data||[]);
+    if(!data || data.length<page) break;
+    from+=page;
+  }
+  return out;
+}
 async function apiLoad(){
   if(!sb) return false;
   syncing=true;
@@ -413,17 +445,13 @@ async function apiLoad(){
   /* Push unsynced local edits before pulling the server copy. */
   if(loaded && !isBlankDB() && dbVersion>lastServerVersion){ try{ await syncSave(); }catch(e){} }
   try{
-    const q=await Promise.all([
-      sb.from('users').select('*').eq('is_deleted',false),
-      sb.from('roles').select('*'),
-      sb.from('dict').select('*'),
-      sb.from('tasks').select('*'),
-      sb.from('notify').select('*'),
-      sb.from('settings').select('*'),
-      sb.from('seq').select('*')
-    ]);
-    const bad=q.find(x=>x.error); if(bad) throw new Error(bad.error.message);
-    const [u,r,d,t,n,st,sq]=q.map(x=>x.data||[]);
+    const u =await fetchAll('users',   'id',  q=>q.eq('is_deleted',false));
+    const r =await fetchAll('roles',   'id');
+    const d =await fetchAll('dict',    'id');
+    const t =await fetchAll('tasks',   'id');
+    const n =await fetchAll('notify',  'id');
+    const st=await fetchAll('settings','key');
+    const sq=await fetchAll('seq',     'key');
     const db=blankDB();
     db.users=u.map(userFromRow);
     db.roles=r.map(roleFromRow);
@@ -432,7 +460,8 @@ async function apiLoad(){
     db.notify=n.map(notifyFromRow);
     db.settings={dailyMinutes:480}; st.forEach(s=>{ if(s.key==='dailyMinutes') db.settings.dailyMinutes=+s.value||480; });
     db.seq=blankDB().seq; sq.forEach(s=>{ db.seq[s.key]=+s.value||0; });
-    db.tomb=[];
+    /* Keep local tombstones so a reload can't resurrect just-deleted rows. */
+    db.tomb=(DB&&Array.isArray(DB.tomb))?DB.tomb.slice():[];
     DB=db; normalizeDB();
     rebuildServer();
     try{ localStorage.setItem(LS, JSON.stringify(DB)); }catch(e){}
@@ -464,6 +493,8 @@ function startRealtime(){
 }
 function applyRealtime(tbl,p){
   if(!DB || !DB[tbl]) return;
+  const evId=String((p.new&&p.new.id)||(p.old&&p.old.id)||'');
+  if(evId && (DB.tomb||[]).some(t=>t&&String(t.id)===evId)) return;   /* don't resurrect a local delete */
   if(p.eventType==='DELETE'){
     const id=p.old&&p.old.id;
     if(id!=null){ DB[tbl]=DB[tbl].filter(x=>x.id!==id); if(SERVER[tbl]) delete SERVER[tbl][id]; }
@@ -1242,6 +1273,7 @@ function assignView(){
   const roles=memberRolesOf(sec);
   const rNorm = window.__assignRole ? String(window.__assignRole).trim().toLowerCase() : '';
   const roleSel = rNorm ? (roles.find(r=>String(r).trim().toLowerCase()===rNorm) || roles[0]) : (roles[0]||'');
+  if(roleSel) window.__assignRole=roleSel;   /* register the default role */
   let members;
   if(scope==='all'){
     members=DB.users.filter(u=>u.type==='member' && u.status==='approved')
@@ -1480,7 +1512,9 @@ function crossView(){
       <button class="btn sm red" onclick="removeCrossRow(${i})" title="Remove">×</button>
     </div>`).join('');
   const dictRoles=crossDictRoles(cSec);
-  const dictRole=window.__crossRole || (dictRoles[0]||'');
+  let dictRole=window.__crossRole;
+  if(!dictRole || dictRoles.indexOf(dictRole)<0) dictRole=(dictRoles[0]||'');   /* drop stale role */
+  window.__crossRole=dictRole||'';
   const dNorm=dictRole?String(dictRole).trim().toLowerCase():'';
   const dictFreq=window.__crossDictFreq||'All';
   const dictMatch=DB.dict.filter(d=>d.section===cSec && (!dNorm||String(d.role||'').trim().toLowerCase()===dNorm) && (dictFreq==='All'||d.frequency===dictFreq));
@@ -1735,7 +1769,9 @@ function dictSec(){ return isSuper() ? (window.__dictSec || SECTIONS[0]) : curre
 function dictView(){
   const sec=dictSec();
   const roles=rolesOf(sec);
-  const role=window.__dictRole||(roles[0]&&roles[0].name)||'';
+  let role=window.__dictRole;
+  if(!role || !roles.some(r=>r.name===role)) role=(roles[0]&&roles[0].name)||'';  /* drop stale role */
+  window.__dictRole=role;
   const dict=DB.dict.filter(d=>d.section===sec && (!role||d.role===role));
   const roleRows=roles.map(r=>`<tr><td>${esc(r.name)}</td><td>${DB.users.filter(u=>u.section===sec&&u.role===r.name).length}</td>
     <td>${DB.dict.filter(d=>d.section===sec&&d.role===r.name).length}</td>
@@ -1756,7 +1792,7 @@ function dictView(){
   <div class="card"><h2>Role-wise Task Dictionary</h2><p class="desc">Save frequently used tasks per role so they can be reused when assigning.</p>
     <div class="row">
       <div class="field" style="min-width:220px"><label>Role</label>
-        <select onchange="window.__dictRole=this.value;render()">${roles.map(r=>`<option ${r.name===role?'selected':''}>${esc(r.name)}</option>`).join('')||'<option value="">—</option>'}</select></div>
+        <select id="dictRoleSel" onchange="window.__dictRole=this.value;render()">${roles.map(r=>`<option ${r.name===role?'selected':''}>${esc(r.name)}</option>`).join('')||'<option value="">—</option>'}</select></div>
       <div class="field" style="min-width:260px"><label>Task title</label><input id="dTitle"></div>
       <div class="field" style="min-width:100px"><label>Est. min</label><input id="dMin" type="number" value="30"></div>
       <div class="field" style="min-width:120px"><label>Priority</label><select id="dPrio">${PRIORITIES.map(p=>`<option>${p}</option>`).join('')}</select></div>
@@ -1776,7 +1812,9 @@ function addRole(){
 function delRole(id){ const r=DB.roles.find(x=>x.id===id); if(!r) return; if(!confirm('Delete role '+r.name+'?')) return;
   tombstone(id); DB.roles=DB.roles.filter(x=>x.id!==id); save(); render(); }
 function addDict(){
-  const sec=dictSec(), role=window.__dictRole||'';
+  const sec=dictSec();
+  const sel=document.getElementById('dictRoleSel');
+  const role=(sel&&sel.value)||window.__dictRole||'';   /* read the live dropdown first */
   const title=document.getElementById('dTitle').value.trim();
   if(!role){ toast('Pick a role.'); return; }
   if(!title){ toast('Enter a task title.'); return; }
