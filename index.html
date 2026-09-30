@@ -176,9 +176,24 @@
     .bulkbar button:disabled{opacity:.45;cursor:not-allowed}
     .col-sel{width:34px;text-align:center}
     .col-sel input{width:auto;margin:0}
+    /* Hard internet gate: app is unusable without a connection */
+    #netGate{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;background:#0f2233;color:#fff;text-align:center;padding:24px}
+    #netGate.show{display:flex}
+    #netGate .box{max-width:430px;width:100%}
+    #netGate .em{font-size:52px;line-height:1;margin-bottom:14px}
+    #netGate h2{color:#fff;font-size:21px;margin:0 0 8px}
+    #netGate p{color:#c9d6e2;font-size:14px;margin:0 0 20px;line-height:1.5}
+    #netGate button{background:#2E86C1;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-weight:600;cursor:pointer;font-size:14px}
+    #netGate button:hover{background:#2574a9}
 </style>
 </head>
 <body>
+<div id="netGate"><div class="box">
+  <div class="em">&#128225;</div>
+  <h2>No Internet Connection</h2>
+  <p>Please connect to Internet to use WorkTrac360.</p>
+  <button onclick="location.reload()">Retry</button>
+</div></div>
 <div id="app"></div>
 <div id="toast"></div>
 
@@ -206,7 +221,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.9';
+const BUILD = '4.10';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -533,7 +548,17 @@ function scheduleSyncLoop(){
 }
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden && current && apiUrl()) smartSync(); });
 window.addEventListener('focus',()=>{ if(current && apiUrl()) smartSync(); });
-window.addEventListener('online',()=>{ if(current && apiUrl()) smartSync(); });
+window.addEventListener('online',()=>{ updateNetGate(); if(current && apiUrl()) smartSync(); });
+window.addEventListener('offline',()=>{ updateNetGate(); });
+/* Internet gate: the app is unusable without a connection. */
+function updateNetGate(){
+  let off=false;
+  try{ off=(navigator.onLine===false); }catch(e){}
+  const g=document.getElementById('netGate');
+  if(g) g.classList.toggle('show', off);
+  try{ document.documentElement.style.overflow = off ? 'hidden' : ''; }catch(e){}
+  return off;
+}
 
 /* ---- PWA: install prompt + offline service worker ---- */
 let canInstall=false, deferredPrompt=null;
@@ -2220,6 +2245,7 @@ function modal(html){ closeModal();
   bg.innerHTML=`<div class="modal">${html}</div>`; wrapTables(bg); bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
 function closeModal(){ document.querySelectorAll('#modalBg,.modal-bg').forEach(m=>m.remove()); }
 
+updateNetGate();
 load();
 restoreSession();
 render();

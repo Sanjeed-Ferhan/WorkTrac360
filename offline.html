@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f2233">
+<title>WorkTrac360 — No Internet</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#0f2233;color:#fff;
+       display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+  .box{max-width:430px;width:100%}
+  .em{font-size:54px;line-height:1;margin-bottom:16px}
+  h1{font-size:21px;margin:0 0 10px;color:#fff}
+  p{color:#c9d6e2;font-size:14px;line-height:1.55;margin:0 0 22px}
+  button{background:#2E86C1;color:#fff;border:none;border-radius:8px;padding:12px 22px;font-weight:600;cursor:pointer;font-size:14px}
+  button:hover{background:#2574a9}
+  .brand{margin-top:26px;font-size:12px;color:#7f95ab}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="em">&#128225;</div>
+    <h1>No Internet Connection</h1>
+    <p>Please connect to Internet to use WorkTrac360.</p>
+    <button onclick="location.reload()">Retry</button>
+    <div class="brand">WorkTrac360 &middot; Akij Cement Company Ltd.</div>
+  </div>
+  <script>
+    // Auto-recover: reload the moment the connection returns.
+    window.addEventListener('online', function(){ location.reload(); });
+  </script>
+</body>
+</html>
