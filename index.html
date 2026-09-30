@@ -221,7 +221,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.10';
+const BUILD = '4.11';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -570,9 +570,18 @@ function installApp(){
   if(deferredPrompt.userChoice) deferredPrompt.userChoice.finally(()=>{ deferredPrompt=null; canInstall=false; if(current) render(); });
 }
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+  /* Force already-installed apps to pick up the new online-only worker and drop
+     the old offline app-shell caches the first time they next go online. */
+  const SW_CACHE='wt360-v10';
+  const purgeOldCaches=()=>{ try{ caches.keys().then(ks=>ks.forEach(k=>{ if(k.indexOf('wt360-')===0 && k!==SW_CACHE) caches.delete(k); })); }catch(e){} };
+  window.addEventListener('load',()=>{
+    purgeOldCaches();
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'})
+      .then(reg=>{ try{ reg.update(); }catch(e){} })
+      .catch(()=>{});
+  });
   let swReloaded=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(swReloaded) return; swReloaded=true; location.reload(); });
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(swReloaded) return; swReloaded=true; purgeOldCaches(); location.reload(); });
 }
 
 /* ------------------------------ helpers --------------------------------- */
