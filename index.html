@@ -221,7 +221,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.11';
+const BUILD = '4.12';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -630,6 +630,12 @@ function visibleTasks(u){
   if(u.type==='supervisor') return DB.tasks.filter(t=>t.section===u.section || t.assignedById===u.id || t.assigneeId===u.id);
   return DB.tasks.filter(t=>isMyTask(t,u));
 }
+/* A task is "given by me" if I am the supervisor who assigned it, or I raised it
+   as a cross-functional task. */
+function givenByMe(t,u){
+  u=u||current; if(!t||!u) return false;
+  return t.supervisorId===u.id || t.assignedById===u.id;
+}
 /* A task is "mine" if it targets my account or any account sharing my enroll
    ID (guards against duplicate registrations of the same person). */
 function isMyTask(t,u){
@@ -845,7 +851,7 @@ function logout(){ current=null; authMode='signin'; authMsg=null; setSession(nul
 
 /* --------------------------------- shell -------------------------------- */
 function shell(){
-  const tabs=[['dashboard','Dashboard'],['tasks','Tasks']];
+  const tabs=[['dashboard','Dashboard'],['tasks','Tasks'],['given','Given Task']];
   if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['cross','Cross Functional']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
   if(isSuper()) tabs.push(['departments','Departments']);
   tabs.push(['notify','Notifications']);
@@ -860,6 +866,7 @@ function shell(){
   switch(view){
     case 'dashboard': body=dashboardView(); break;
     case 'tasks': body=tasksView(); break;
+    case 'given': body=givenView(); break;
     case 'mytasks': body=myTasksView(); break;
     case 'assign': body=assignView(); break;
     case 'cross': body=crossView(); break;
@@ -1296,6 +1303,16 @@ function myTasksView(){
     <div style="margin-bottom:12px">${statusChips(ts)}</div>
     ${bulkBar()}
     ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks assigned to you yet.</div>'}</div>`;
+}
+/* Given Task: tasks this user gave to someone else (personal to the giver). */
+function givenView(){
+  const ts=DB.tasks.filter(t=>givenByMe(t,current));
+  const rows=ts.slice().sort((a,b)=>(+b.createdAt||0)-(+a.createdAt||0));
+  return `<div class="card"><h2>Given Task</h2>
+    <p class="desc">Tasks you have given to others — only you can see this list. ${rows.length} task(s).</p>
+    <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${bulkBar()}
+    ${taskListHtml(filteredTasks(ts))||'<div class="empty">You have not given any task yet.</div>'}</div>`;
 }
 function setFilter(s){ taskFilter=s; render(); }
 
