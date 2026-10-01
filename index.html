@@ -649,6 +649,11 @@ function isMyTask(t,u){
   const a=DB.users.find(x=>x.id===t.assigneeId);
   return !!(a && String(a.enroll||'').trim().toLowerCase()===me);
 }
+/* A task I GAVE to someone else (I was the supervisor or the raiser). */
+function isGivenTask(t,u){
+  u=u||current; if(!t||!u) return false;
+  return t.supervisorId===u.id || t.assignedById===u.id;
+}
 function deptSupervisors(sec){ return DB.users.filter(u=>u.type==='supervisor' && u.section===sec && u.status==='approved'); }
 function rolesOf(sec){ return DB.roles.filter(r=>r.section===sec).sort((a,b)=>a.name.localeCompare(b.name)); }
 /* Role list for assignment, built from the people actually in that section
@@ -863,14 +868,16 @@ function logout(){
 /* --------------------------------- shell -------------------------------- */
 function shell(){
   const tabs=[['dashboard','Dashboard'],['tasks','Tasks']];
-  if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['cross','Cross Functional']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
+  if(current.type!=='member'){ tabs.push(['given','Given Tasks']); tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['cross','Cross Functional']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
   if(isSuper()) tabs.push(['departments','Departments']);
   tabs.push(['notify','Notifications']);
   const myOpen=DB.tasks.filter(t=>isMyTask(t,current) && t.status!=='Done' && t.status!=='Verified').length;
+  const givenOpen=DB.tasks.filter(t=>isGivenTask(t,current) && t.status!=='Done' && t.status!=='Verified').length;
   const nav=tabs.map(([k,l])=>{
     let c='';
     if(k==='notify' && unread()) c=`<span class="cnt">${unread()}</span>`;
     if(k==='mytasks' && myOpen) c=`<span class="cnt">${myOpen}</span>`;
+    if(k==='given' && givenOpen) c=`<span class="cnt">${givenOpen}</span>`;
     return `<button class="${view===k?'active':''}" onclick="go('${k}')">${l}${c}</button>`;
   }).join('');
   let body='';
@@ -878,6 +885,7 @@ function shell(){
     case 'dashboard': body=dashboardView(); break;
     case 'tasks': body=tasksView(); break;
     case 'mytasks': body=myTasksView(); break;
+    case 'given': body=givenTasksView(); break;
     case 'assign': body=assignView(); break;
     case 'cross': body=crossView(); break;
     case 'team': body=teamView(); break;
@@ -1313,6 +1321,14 @@ function myTasksView(){
     <div style="margin-bottom:12px">${statusChips(ts)}</div>
     ${bulkBar()}
     ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks assigned to you yet.</div>'}</div>`;
+}
+function givenTasksView(){
+  const ts=DB.tasks.filter(t=>isGivenTask(t,current));
+  return `<div class="card"><h2>Given Tasks</h2>
+    <p class="desc">Tasks you have given to others — your team or another department. Track their status and verify when done.</p>
+    <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${bulkBar()}
+    ${taskListHtml(filteredTasks(ts))||'<div class="empty">You have not given any task yet.</div>'}</div>`;
 }
 function setFilter(s){ taskFilter=s; render(); }
 
