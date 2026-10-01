@@ -176,28 +176,13 @@
     .bulkbar button:disabled{opacity:.45;cursor:not-allowed}
     .col-sel{width:34px;text-align:center}
     .col-sel input{width:auto;margin:0}
-    /* Hard internet gate: app is unusable without a connection */
-    #netGate{position:fixed;inset:0;z-index:2147483647;display:none;align-items:center;justify-content:center;background:#0f2233;color:#fff;text-align:center;padding:24px}
-    #netGate.show{display:flex}
-    #netGate .box{max-width:430px;width:100%}
-    #netGate .em{font-size:52px;line-height:1;margin-bottom:14px}
-    #netGate h2{color:#fff;font-size:21px;margin:0 0 8px}
-    #netGate p{color:#c9d6e2;font-size:14px;margin:0 0 20px;line-height:1.5}
-    #netGate button{background:#2E86C1;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-weight:600;cursor:pointer;font-size:14px}
-    #netGate button:hover{background:#2574a9}
 </style>
 </head>
 <body>
-<div id="netGate"><div class="box">
-  <div class="em">&#128225;</div>
-  <h2>No Internet Connection</h2>
-  <p>Please connect to Internet to use WorkTrac360.</p>
-  <button onclick="location.reload()">Retry</button>
-</div></div>
 <div id="app"></div>
 <div id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-js.js"></script>
 <script>
 /* =========================================================================
    ACCL — WORKTRAC360
@@ -221,7 +206,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
 const LS = 'accl_task_system_v6';
-const BUILD = '4.12';
+const BUILD = '4.9';
 
 /* Super Admin self-registration is protected by this setup code.
    CHANGE IT to your own value (share only with OPEX leads). */
@@ -440,10 +425,10 @@ function applyTombs(){
   DB.settings=DB.settings||{}; DB.settings.tomb=JSON.stringify(Array.from(ids));
 }
 /* PostgREST returns at most 1000 rows per request — page through to get all. */
-async function fetchAll(table, ord, apply){
+async function fetchAll(table, ord, apply, cols){
   const page=1000; let from=0, out=[];
   for(;;){
-    let q=sb.from(table).select('*').order(ord||'id',{ascending:true}).range(from, from+page-1);
+    let q=sb.from(table).select(cols||'*').order(ord||'id',{ascending:true}).range(from, from+page-1);
     if(apply) q=apply(q);
     const {data,error}=await q;
     if(error) throw new Error(table+': '+error.message);
@@ -453,6 +438,22 @@ async function fetchAll(table, ord, apply){
   }
   return out;
 }
+/* Only the current user's notifications, newest first (not the whole log). */
+async function fetchNotifs(uid, limit){
+  const {data,error}=await sb.from('notify').select('*')
+    .eq('to_user',uid).order('at',{ascending:false}).limit(limit||300);
+  if(error) throw new Error('notify: '+error.message);
+  return data||[];
+}
+/* Scope task downloads to the signed-in user so we don't pull all 5,000 rows. */
+function taskScope(q){
+  const me=current;
+  if(!me) return q.eq('id','__none__');
+  if(me.type==='superadmin') return q;                 /* super admin sees everything */
+  if(me.type==='supervisor')
+    return q.or('section.eq.'+JSON.stringify(me.section||'')+',assigned_by_id.eq.'+me.id+',assignee_id.eq.'+me.id);
+  return q.or('assignee_id.eq.'+me.id+',assigned_by_id.eq.'+me.id);
+}
 async function apiLoad(){
   if(!sb) return false;
   syncing=true;
@@ -460,13 +461,15 @@ async function apiLoad(){
   /* Push unsynced local edits before pulling the server copy. */
   if(loaded && !isBlankDB() && dbVersion>lastServerVersion){ try{ await syncSave(); }catch(e){} }
   try{
-    const u =await fetchAll('users',   'id',  q=>q.eq('is_deleted',false));
-    const r =await fetchAll('roles',   'id');
-    const d =await fetchAll('dict',    'id');
-    const t =await fetchAll('tasks',   'id');
-    const n =await fetchAll('notify',  'id');
-    const st=await fetchAll('settings','key');
-    const sq=await fetchAll('seq',     'key');
+    /* only the columns the app uses — smaller payloads */
+    const u =await fetchAll('users',   'id',  q=>q.eq('is_deleted',false), 'id,enroll,name,section,role,type,status,updated_at');
+    const r =await fetchAll('roles',   'id',  null, 'id,section,name');
+    const d =await fetchAll('dict',    'id',  null, 'id,section,role,title,est_min,priority,frequency');
+    const st=await fetchAll('settings','key', null, 'key,value');
+    const sq=await fetchAll('seq',     'key', null, 'key,value');
+    /* tasks + notifications scoped to the signed-in user */
+    const t = current ? await fetchAll('tasks','id', q=>taskScope(q)) : [];
+    const n = current ? await fetchNotifs(current.id) : [];
     const db=blankDB();
     db.users=u.map(userFromRow);
     db.roles=r.map(roleFromRow);
@@ -494,16 +497,33 @@ function busyInput(){
   const ae=document.activeElement; const app=document.getElementById('app');
   return !!(ae && app && app.contains(ae) && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName));
 }
+function stopRealtime(){
+  if(rtChannel){ try{ sb.removeChannel(rtChannel); }catch(e){} rtChannel=null; }
+}
 function startRealtime(){
-  if(!sb || rtChannel) return;
+  if(!sb) return;
+  stopRealtime();
   try{
-    rtChannel=sb.channel('wt360')
-      .on('postgres_changes',{event:'*',schema:'public',table:'users'},  p=>applyRealtime('users',p))
-      .on('postgres_changes',{event:'*',schema:'public',table:'roles'},  p=>applyRealtime('roles',p))
-      .on('postgres_changes',{event:'*',schema:'public',table:'dict'},   p=>applyRealtime('dict',p))
-      .on('postgres_changes',{event:'*',schema:'public',table:'tasks'},  p=>applyRealtime('tasks',p))
-      .on('postgres_changes',{event:'*',schema:'public',table:'notify'}, p=>applyRealtime('notify',p))
-      .subscribe();
+    const ch=sb.channel('wt360')
+      .on('postgres_changes',{event:'*',schema:'public',table:'users'}, p=>applyRealtime('users',p))
+      .on('postgres_changes',{event:'*',schema:'public',table:'roles'}, p=>applyRealtime('roles',p))
+      .on('postgres_changes',{event:'*',schema:'public',table:'dict'},  p=>applyRealtime('dict',p));
+    /* subscribe to task/notification changes only for rows this user can see */
+    if(current){
+      const nf={event:'*',schema:'public',table:'notify',filter:'to_user=eq.'+current.id};
+      ch.on('postgres_changes', nf, p=>applyRealtime('notify',p));
+      if(current.type==='superadmin'){
+        ch.on('postgres_changes',{event:'*',schema:'public',table:'tasks'}, p=>applyRealtime('tasks',p));
+      } else if(current.type==='supervisor'){
+        ch.on('postgres_changes',{event:'*',schema:'public',table:'tasks',filter:'section=eq.'+JSON.stringify(current.section||'')}, p=>applyRealtime('tasks',p));
+        ch.on('postgres_changes',{event:'*',schema:'public',table:'tasks',filter:'assigned_by_id=eq.'+current.id}, p=>applyRealtime('tasks',p));
+      } else {
+        ch.on('postgres_changes',{event:'*',schema:'public',table:'tasks',filter:'assignee_id=eq.'+current.id}, p=>applyRealtime('tasks',p));
+        ch.on('postgres_changes',{event:'*',schema:'public',table:'tasks',filter:'assigned_by_id=eq.'+current.id}, p=>applyRealtime('tasks',p));
+      }
+    }
+    ch.subscribe();
+    rtChannel=ch;
   }catch(e){ API_ERR=String((e&&e.message)||e); }
 }
 function applyRealtime(tbl,p){
@@ -540,25 +560,23 @@ async function manualSync(){
 let pollTimer=null;
 function scheduleSyncLoop(){
   if(pollTimer) clearInterval(pollTimer);
-  /* Realtime handles live updates; this is just a safety refresh. */
+  /* Realtime is primary; this is only a rare safety refresh. */
   pollTimer=setInterval(()=>{
     if(!current || !apiUrl() || document.hidden) return;
     smartSync();
-  }, 300000);
+  }, 1800000);   /* 30 min */
 }
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden && current && apiUrl()) smartSync(); });
-window.addEventListener('focus',()=>{ if(current && apiUrl()) smartSync(); });
-window.addEventListener('online',()=>{ updateNetGate(); if(current && apiUrl()) smartSync(); });
-window.addEventListener('offline',()=>{ updateNetGate(); });
-/* Internet gate: the app is unusable without a connection. */
-function updateNetGate(){
-  let off=false;
-  try{ off=(navigator.onLine===false); }catch(e){}
-  const g=document.getElementById('netGate');
-  if(g) g.classList.toggle('show', off);
-  try{ document.documentElement.style.overflow = off ? 'hidden' : ''; }catch(e){}
-  return off;
+/* Don't reload on every focus/tab-switch — Realtime already keeps us live.
+   Allow at most one light refresh every 10 minutes. */
+let lastFocusSync=0;
+function lightResync(){
+  const now=Date.now();
+  if(now-lastFocusSync<600000) return;
+  lastFocusSync=now; smartSync();
 }
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && current && apiUrl()) lightResync(); });
+window.addEventListener('focus',()=>{ if(current && apiUrl()) lightResync(); });
+window.addEventListener('online',()=>{ if(current && apiUrl()) smartSync(); });
 
 /* ---- PWA: install prompt + offline service worker ---- */
 let canInstall=false, deferredPrompt=null;
@@ -570,18 +588,9 @@ function installApp(){
   if(deferredPrompt.userChoice) deferredPrompt.userChoice.finally(()=>{ deferredPrompt=null; canInstall=false; if(current) render(); });
 }
 if('serviceWorker' in navigator){
-  /* Force already-installed apps to pick up the new online-only worker and drop
-     the old offline app-shell caches the first time they next go online. */
-  const SW_CACHE='wt360-v10';
-  const purgeOldCaches=()=>{ try{ caches.keys().then(ks=>ks.forEach(k=>{ if(k.indexOf('wt360-')===0 && k!==SW_CACHE) caches.delete(k); })); }catch(e){} };
-  window.addEventListener('load',()=>{
-    purgeOldCaches();
-    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'})
-      .then(reg=>{ try{ reg.update(); }catch(e){} })
-      .catch(()=>{});
-  });
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
   let swReloaded=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(swReloaded) return; swReloaded=true; purgeOldCaches(); location.reload(); });
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(swReloaded) return; swReloaded=true; location.reload(); });
 }
 
 /* ------------------------------ helpers --------------------------------- */
@@ -629,12 +638,6 @@ function visibleTasks(u){
   if(u.type==='superadmin') return DB.tasks;
   if(u.type==='supervisor') return DB.tasks.filter(t=>t.section===u.section || t.assignedById===u.id || t.assigneeId===u.id);
   return DB.tasks.filter(t=>isMyTask(t,u));
-}
-/* A task is "given by me" if I am the supervisor who assigned it, or I raised it
-   as a cross-functional task. */
-function givenByMe(t,u){
-  u=u||current; if(!t||!u) return false;
-  return t.supervisorId===u.id || t.assignedById===u.id;
 }
 /* A task is "mine" if it targets my account or any account sharing my enroll
    ID (guards against duplicate registrations of the same person). */
@@ -846,12 +849,20 @@ function restoreSession(){
   if(u && u.status==='approved') current=u;
   else { current=null; setSession(null); }
 }
-function login(id){ current=DB.users.find(u=>u.id===id); view='dashboard'; authMsg=null; setSession(id); render(); }
-function logout(){ current=null; authMode='signin'; authMsg=null; setSession(null); render(); }
+function login(id){
+  current=DB.users.find(u=>u.id===id); view='dashboard'; authMsg=null; setSession(id);
+  render(); startRealtime();
+  if(apiUrl()) apiLoad().then(()=>render());   /* pull this user's scoped tasks + notifications */
+}
+function logout(){
+  current=null; authMode='signin'; authMsg=null; setSession(null);
+  DB.tasks=[]; DB.notify=[]; SERVER.tasks={}; SERVER.notify={};   /* drop scoped data */
+  startRealtime(); render();
+}
 
 /* --------------------------------- shell -------------------------------- */
 function shell(){
-  const tabs=[['dashboard','Dashboard'],['tasks','Tasks'],['given','Given Task']];
+  const tabs=[['dashboard','Dashboard'],['tasks','Tasks']];
   if(current.type!=='member'){ tabs.push(['mytasks','My Tasks']); tabs.push(['assign','Assign Task']); tabs.push(['cross','Cross Functional']); tabs.push(['team','Team']); tabs.push(['dictionary','Roles & Dictionary']); tabs.push(['workload','Workload']); tabs.push(['reports','Reports']); }
   if(isSuper()) tabs.push(['departments','Departments']);
   tabs.push(['notify','Notifications']);
@@ -866,7 +877,6 @@ function shell(){
   switch(view){
     case 'dashboard': body=dashboardView(); break;
     case 'tasks': body=tasksView(); break;
-    case 'given': body=givenView(); break;
     case 'mytasks': body=myTasksView(); break;
     case 'assign': body=assignView(); break;
     case 'cross': body=crossView(); break;
@@ -1303,16 +1313,6 @@ function myTasksView(){
     <div style="margin-bottom:12px">${statusChips(ts)}</div>
     ${bulkBar()}
     ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks assigned to you yet.</div>'}</div>`;
-}
-/* Given Task: tasks this user gave to someone else (personal to the giver). */
-function givenView(){
-  const ts=DB.tasks.filter(t=>givenByMe(t,current));
-  const rows=ts.slice().sort((a,b)=>(+b.createdAt||0)-(+a.createdAt||0));
-  return `<div class="card"><h2>Given Task</h2>
-    <p class="desc">Tasks you have given to others — only you can see this list. ${rows.length} task(s).</p>
-    <div style="margin-bottom:12px">${statusChips(ts)}</div>
-    ${bulkBar()}
-    ${taskListHtml(filteredTasks(ts))||'<div class="empty">You have not given any task yet.</div>'}</div>`;
 }
 function setFilter(s){ taskFilter=s; render(); }
 
@@ -2271,7 +2271,6 @@ function modal(html){ closeModal();
   bg.innerHTML=`<div class="modal">${html}</div>`; wrapTables(bg); bg.addEventListener('click',e=>{ if(e.target===bg) closeModal(); }); document.body.appendChild(bg); }
 function closeModal(){ document.querySelectorAll('#modalBg,.modal-bg').forEach(m=>m.remove()); }
 
-updateNetGate();
 load();
 restoreSession();
 render();
