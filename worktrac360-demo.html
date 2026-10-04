@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>WorkTrac360 Demo</title>
+<title>WorkTrac</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1F4E78">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="WorkTrac360 Demo">
+<meta name="apple-mobile-web-app-title" content="WorkTrac">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-<meta name="description" content="WorkTrac360 Demo - sample task assignment, tracking and reporting.">
-<meta name="application-name" content="WorkTrac360 Demo">
+<meta name="description" content="WorkTrac - sample task assignment, tracking and reporting.">
+<meta name="application-name" content="WorkTrac">
 <meta name="robots" content="noindex, nofollow">
 <style>
   :root{
@@ -184,7 +184,7 @@
 
 <script>
 /* =========================================================================
-   DEMO — WORKTRAC360
+   DEMO — WORKTRAC
    Account types: Supervisor | Team Member.  Identity = Enroll ID only.
    Data stored in this browser (localStorage). Notifications are in-app.
    ========================================================================= */
@@ -204,7 +204,7 @@ const STATUS_HEX = {"Not Started":"#B0BEC5","In Progress":"#2E86C1","Need Suppor
   "Blocked":"#C0392B","Done":"#2ECC71","Verified":"#1E8449","Reopened":"#8E44AD"};
 const PRIO_COLOR = {"High":"b-red","Medium":"b-orange","Low":"b-grey"};
 
-const LS = 'worktrac360_demo_v1';
+const LS = 'worktrac_demo_v1';
 const BUILD = '4.9';
 
 /* Super Admin self-registration is protected by this setup code.
@@ -240,7 +240,7 @@ const SUPERVISOR_HINT = {
 function blankDB(){
   return {users:[], roles:[], dict:[], tasks:[], notify:[], tomb:[], settings:{dailyMinutes:480}, seq:{task:1, role:1, dict:1, rev:0}};
 }
-/* ======================= DEMO DATASET (WorkTrac360 Demo) ==================
+/* ======================= DEMO DATASET (WorkTrac) ==================
    Loaded on first run. Everything is stored in this browser only; there is
    no backend sync in this demo copy. Clear site data to reset to this seed.
    ======================================================================== */
@@ -375,7 +375,7 @@ function demoSeed(){
 let DB;
 function load(){ try{ const raw=localStorage.getItem(LS); DB=raw?JSON.parse(raw):demoSeed(); }catch(e){ DB=blankDB(); } if(!DB.seq) DB.seq=blankDB().seq; if(!DB.settings) DB.settings={dailyMinutes:480}; }
 
-/* ---- Backend sync: Supabase (WorkTrac360) ----
+/* ---- Backend sync: Supabase (WorkTrac) ----
    Talks to Postgres RPCs wt360_load / wt360_save / wt360_ping, which mirror the
    old Apps Script contract ({ok,rev,ts,db}). The browser uses the project's
    anon key; a shared token gates every RPC. */
@@ -686,7 +686,7 @@ function openRestore(){
 /* ---- PWA: install prompt + offline service worker ---- */
 let canInstall=false, deferredPrompt=null;
 window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredPrompt=e; canInstall=true; if(current) render(); });
-window.addEventListener('appinstalled',()=>{ canInstall=false; deferredPrompt=null; toast('WorkTrac360 Demo added to your device.'); if(current) render(); });
+window.addEventListener('appinstalled',()=>{ canInstall=false; deferredPrompt=null; toast('WorkTrac added to your device.'); if(current) render(); });
 function installApp(){
   if(!deferredPrompt){ toast('Open your browser menu and choose "Add to Home screen".'); return; }
   deferredPrompt.prompt();
@@ -810,7 +810,7 @@ function loginView(){
   const none = DB.users.length===0;
   return `<div class="auth-wrap"><div class="auth-card">
     <div class="auth-brand"><div class="auth-logo">DEMO</div>
-      <div><h1>WorkTrac360 Demo</h1><span>Sample workspace</span></div></div>
+      <div><h1>WorkTrac</h1><span>Sample workspace</span></div></div>
     <p class="lead">Sign in with your Enroll ID.</p>
     <div class="note" style="margin-bottom:14px"><b>Demo accounts</b> - enter an Enrol ID below:<br><b>561462</b> &middot; Sanjeed Ferhan (Super Admin)<br><b>561001</b> &middot; Rafiqul Islam (Production Supervisor)<br><b>561002</b> &middot; Abdul Karim (Production Member)</div>
     ${authMsg?`<div class="ok">${esc(authMsg)}</div>`:''}
@@ -818,7 +818,7 @@ function loginView(){
     <div class="field"><label>Enroll ID</label><input id="loginId" placeholder="e.g. 560501" onkeydown="if(event.key==='Enter')loginByInput()"></div>
     <button class="btn" style="width:100%" onclick="loginByInput()">Sign in</button>
     <p style="margin:14px 0 0;font-size:13px">New user? <span class="link" onclick="showRegister()">Register here</span></p>
-    <p style="margin:10px 0 0;font-size:11px;color:var(--muted)">WorkTrac360 Demo build ${BUILD}</p>
+    <p style="margin:10px 0 0;font-size:11px;color:var(--muted)">WorkTrac build ${BUILD}</p>
   </div></div>`;
 }
 function registerView(){
@@ -972,7 +972,7 @@ function shell(){
   }
   return `
   <div class="topbar">
-    <div class="brand"><div class="mk">DEMO</div><div>WorkTrac360 Demo<small>Sample workspace &middot; Demo</small></div></div>
+    <div class="brand"><div class="mk">DEMO</div><div>WorkTrac<small>Sample workspace &middot; Demo</small></div></div>
     <div class="spacer"></div>
     <div class="who"><div class="avatar">${esc(initials(current.name))}</div>
       <div class="nm">${esc(current.name)}<small>${typeBadge(current.type)} ${esc(current.section)} · ${esc(current.role)}</small></div></div>
