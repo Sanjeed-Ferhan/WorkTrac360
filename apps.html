@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1F4E78">
+<title>WorkTrac360 Apps</title>
+<style>
+  :root{--navy:#1F4E78;--navy2:#2E6DA4;--blue:#2E86C1;--teal:#17A589;--red:#C0392B;--line:#e1e8ef;--bg:#eef1f5;--muted:#7f8c8d}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:#243b53}
+  .topbar{background:var(--navy);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .mk{width:38px;height:38px;border-radius:10px;background:var(--navy2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:.5px}
+  .topbar h1{font-size:17px;margin:0;font-weight:700}
+  .topbar small{display:block;font-size:11px;opacity:.8;font-weight:400}
+  .topbar .spacer{flex:1}
+  .topbar a{color:#fff;text-decoration:none;font-size:13px;background:rgba(255,255,255,.15);padding:8px 14px;border-radius:8px}
+  .topbar a:hover{background:rgba(255,255,255,.28)}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 18px 60px}
+  .lead{color:var(--muted);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(16,40,64,.06)}
+  .card .row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .card .sbu{font-weight:800;color:var(--navy);font-size:16px;border:1px solid transparent;border-radius:8px;padding:6px 8px;flex:1;background:#f5f8fc}
+  .card .sbu:focus{outline:none;border-color:var(--navy2);background:#fff}
+  .card .del{background:#fdeaea;color:var(--red);border:none;border-radius:8px;width:34px;height:34px;font-size:18px;cursor:pointer;flex:0 0 auto}
+  .card .del:hover{background:#f6d4d4}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+  .field label{font-size:12px;font-weight:600;color:var(--muted)}
+  .field input{padding:10px;border:1px solid #cfd8e2;border-radius:8px;font-size:13px;background:#fff;width:100%}
+  .field input:focus{outline:none;border-color:var(--navy2)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:9px 15px;cursor:pointer;font-weight:600;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+  .btn:hover{background:var(--navy2)}
+  .btn.green{background:var(--teal)} .btn.green:hover{background:#128f76}
+  .btn.ghost{background:#fff;color:var(--navy);border:1px solid #c7d9ea}
+  .btn.ghost:hover{background:#f0f6fc}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .status{font-size:12px;color:var(--muted);margin-top:8px;min-height:16px}
+  .status.ok{color:#1E8449}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .hint{font-size:12px;color:var(--muted)}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="mk">ACCL</div>
+    <div><h1>WorkTrac360 Apps<small>Akij Cement Company Ltd. &middot; SBU launcher</small></h1></div>
+    <div class="spacer"></div>
+    <a href="https://sanjeed-ferhan.github.io/WorkTrac360/" target="_blank" rel="noopener">Open main app</a>
+  </div>
+
+  <div class="wrap">
+    <p class="lead">Each SBU can run its own WorkTrac360. Paste each SBU's app link below — your links are saved automatically on this device.</p>
+
+    <div class="toolbar">
+      <button class="btn green" onclick="addSbu()">+ Add SBU</button>
+      <span class="hint" id="savedHint"></span>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <footer>WorkTrac360 · Akij Cement Company Ltd.</footer>
+  </div>
+
+<script>
+(function(){
+  var KEY = 'wt360_apps_v1';
+  var DEFAULTS = [
+    { id:'sb_accl',  name:'ACCL',  url:'' },
+    { id:'sb_apfil', name:'APFIL', url:'' },
+    { id:'sb_armcl', name:'ARMCL', url:'' }
+  ];
+
+  function loadData(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){ var d = JSON.parse(raw); if(Array.isArray(d) && d.length) return d; }
+    }catch(e){}
+    return DEFAULTS.slice();
+  }
+  function saveData(data){
+    try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
+    var h=document.getElementById('savedHint');
+    if(h){ h.textContent='Saved'; h.className='hint ok'; clearTimeout(saveData._t); saveData._t=setTimeout(function(){ h.textContent=''; },1200); }
+  }
+  function normUrl(u){
+    u = String(u||'').trim();
+    if(!u) return '';
+    if(!/^https?:\/\//i.test(u) && !/^(mailto|tel):/i.test(u)) u = 'https://' + u;
+    return u;
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  var data = loadData();
+
+  function render(){
+    var grid = document.getElementById('grid');
+    grid.innerHTML = data.map(function(sb, i){
+      var ok = !!normUrl(sb.url);
+      return '' +
+      '<div class="card" data-i="'+i+'">' +
+        '<div class="row">' +
+          '<input class="sbu" value="'+esc(sb.name)+'" placeholder="SBU name" oninput="WT.setName('+i+',this.value)">' +
+          '<button class="del" title="Remove SBU" onclick="WT.remove('+i+')">&times;</button>' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>WorkTrac360 app link</label>' +
+          '<input type="url" value="'+esc(sb.url)+'" placeholder="https://example.github.io/WorkTrac360/" oninput="WT.setUrl('+i+',this.value)">' +
+        '</div>' +
+        '<div class="actions">' +
+          '<button class="btn" '+(ok?'':'disabled')+' onclick="WT.open('+i+')">&#128279; Open app</button>' +
+          '<button class="btn ghost" onclick="WT.copy('+i+')">Copy link</button>' +
+        '</div>' +
+        '<div class="status" id="st'+i+'"></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  var WT = {
+    setName:function(i,v){ data[i].name = v; saveData(data); },
+    setUrl:function(i,v){ data[i].url = v; saveData(data); refreshCard(i); },
+    open:function(i){ var u=normUrl(data[i].url); if(!u) return; window.open(u,'_blank','noopener'); },
+    copy:function(i){
+      var u=normUrl(data[i].url); if(!u) return;
+      var st=document.getElementById('st'+i);
+      var done=function(){ if(st){ st.textContent='Link copied.'; st.className='status ok'; setTimeout(function(){ st.textContent=''; },1500); } };
+      if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(done,function(){ window.prompt('Copy this link:', u); }); }
+      else window.prompt('Copy this link:', u);
+    },
+    remove:function(i){ data.splice(i,1); saveData(data); render(); },
+    add:function(){ addSbu(); }
+  };
+  window.WT = WT;
+
+  function refreshCard(i){
+    var card = document.querySelector('.card[data-i="'+i+'"]'); if(!card) return;
+    var btn = card.querySelector('.btn');
+    var ok = !!normUrl(data[i].url);
+    if(btn) btn.disabled = !ok;
+  }
+  function addSbu(){
+    var name = window.prompt('SBU name (e.g. APFIL):','');
+    if(name===null) return;
+    name = String(name).trim(); if(!name) return;
+    data.push({ id:'sb_'+Date.now(), name:name, url:'' });
+    saveData(data); render();
+    var cards = document.querySelectorAll('.card'); var last = cards[cards.length-1];
+    if(last){ var inp=last.querySelector('input[type=url]'); if(inp) inp.focus(); }
+  }
+  window.addSbu = addSbu;
+
+  render();
+})();
+</script>
+</body>
+</html>
