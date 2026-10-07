@@ -2109,7 +2109,7 @@ function workloadView(){
   DB.roles.forEach(r=>{ if(isSuper()?(sec==='All'||r.section===sec):r.section===current.section) roleKeys.push(r.section+'\u0001'+r.name); });
   const roleRows=roleKeys.map(k=>{
     const [s,role]=k.split('\u0001');
-    const mems=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&u.section===s&&u.role===role);
+    const mems=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===s&&u.role===role);
     const ts=dayTasks.filter(t=>t.section===s&&t.role===role);
     const mins=ts.reduce((a,t)=>a+(+t.estMin||0),0);
     const av=mems.length*cap;
@@ -2117,7 +2117,7 @@ function workloadView(){
   }).sort((a,b)=>b.pct-a.pct);
 
   /* ---- by person ---- */
-  const memberRows=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&scope(u)).map(u=>{
+  const memberRows=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&scope(u)).map(u=>{
     const ts=dayTasks.filter(t=>t.assigneeId===u.id);
     const mins=ts.reduce((a,t)=>a+(+t.estMin||0),0);
     return {u,ts:ts.length,mins,pct:Math.round(mins*100/cap)};
@@ -2158,8 +2158,8 @@ function workloadView(){
 
   const memberTable=memberRows.map(m=>`<tr>
       <td><b>${esc(m.u.name)}</b><div class="small muted">${esc(m.u.enroll)} · ${esc(m.u.section)}</div></td>
-      <td>${esc(m.u.role)}</td><td>${m.ts}</td><td>${m.mins}</td><td>${cap}</td>
-      <td>${bar(m.pct)}</td></tr>`).join('')||'<tr><td colspan=6 class="empty">No team members in scope.</td></tr>';
+      <td>${esc(m.u.role)}</td><td>${typeBadge(m.u.type)}</td><td>${m.ts}</td><td>${m.mins}</td><td>${cap}</td>
+      <td>${bar(m.pct)}</td></tr>`).join('')||'<tr><td colspan=7 class="empty">No members/supervisors in scope.</td></tr>';
 
   return `
   <div class="card"><h2>Workload — ${esc(sec==='All'?'All Departments':sec)}</h2>
@@ -2190,16 +2190,16 @@ function workloadView(){
   </div>
 
   <div class="card"><h2>Load by Role</h2>
-    <p class="desc">Available minutes = members × ${avail} × ${days} days.</p>
-    <table><tr><th>Role</th><th>Members</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th></tr>
+    <p class="desc">Available minutes = people (members + supervisors) × ${avail} × ${days} days.</p>
+    <table><tr><th>Role</th><th>People</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th></tr>
     ${roleTable}</table>
   </div>
 
   ${deptCard}
 
-  <div class="card"><h2>Load by Team Member</h2>
-    <p class="desc">Available minutes = ${avail} × ${days} days = ${cap} min per person.</p>
-    <table><tr><th>Member</th><th>Role</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th></tr>
+  <div class="card"><h2>Load by Team Member &amp; Supervisor</h2>
+    <p class="desc">Available minutes = ${avail} × ${days} days = ${cap} min per person. Supervisors are shown by the tasks assigned to them.</p>
+    <table><tr><th>Person</th><th>Role</th><th>Type</th><th>Tasks</th><th>Assigned min</th><th>Available min</th><th>Load %</th></tr>
     ${memberTable}</table>
   </div>`;
 }
