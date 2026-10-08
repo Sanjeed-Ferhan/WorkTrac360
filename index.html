@@ -56,6 +56,34 @@
   .card h2{margin:0 0 4px;font-size:16px;color:var(--navy)}
   .card .desc{color:var(--muted);font-size:12.5px;margin:0 0 14px}
   .card h3{margin:16px 0 8px;font-size:14px;color:var(--navy)}
+  /* compact super-admin dashboard */
+  .sdash .card{padding:12px 14px;margin-bottom:10px;border-radius:10px}
+  .sdash .card[style*="padding:16px 20px"]{padding:12px 16px !important}
+  .sdash .card h2{font-size:14px;margin:0 0 2px}
+  .sdash .card .desc{margin:0 0 8px;font-size:11.5px}
+  .sdash .card h3{margin:9px 0 5px;font-size:13px}
+  .sdash .grid{gap:10px}
+  .sdash .grid[style*="margin-bottom"]{margin-bottom:10px !important}
+  .sdash .kpi2{padding:11px 13px;border-radius:9px}
+  .sdash .kpi2 .t{font-size:11px}
+  .sdash .kpi2 .n{font-size:21px;margin:2px 0 1px}
+  .sdash .kpi2 .s{font-size:10.5px}
+  .sdash .row{gap:8px}
+  .sdash .field{margin-bottom:6px}
+  .sdash table{font-size:12px}
+  .sdash th,.sdash td{padding:5px 7px}
+  .sdash .bar{height:15px}
+  .sdash .pill{padding:1px 7px;font-size:11px;margin:1px 3px 1px 0}
+  .sdash div[style*="margin-bottom:14px"]{margin-bottom:9px !important}
+  .sdash .small{font-size:11px}
+  .sdash .kpirow{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:10px;margin-bottom:10px;align-items:stretch}
+  .sdash .kpirow > .grid{grid-auto-rows:1fr}
+  .sdash .misscard{padding:10px 12px;margin-bottom:0;height:100%;display:flex;flex-direction:column;justify-content:space-between}
+  .sdash .misscard .badge{font-size:10px;padding:2px 6px}
+  .sdash .kpi2{min-height:0;display:flex;flex-direction:column;justify-content:center}
+  .sdash .kpi2 .s{font-size:10px}
+  .sdash .rightcol{display:flex;flex-direction:column;gap:10px;height:100%}
+  @media(max-width:820px){.sdash .kpirow{grid-template-columns:1fr}}
   .grid{display:grid;gap:14px}
   .g4{grid-template-columns:repeat(4,1fr)}
   .g3{grid-template-columns:repeat(3,1fr)}
@@ -65,8 +93,9 @@
   .kpi{background:#fff;border:1px solid var(--line);border-radius:11px;padding:16px;text-align:center}
   .kpi .v{font-size:25px;font-weight:700;color:var(--navy)}
   .kpi .l{font-size:11px;color:var(--muted);letter-spacing:.5px;margin-top:4px;text-transform:uppercase}
-  .kpi2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-  .kpi2 .t{font-size:12px;color:var(--muted);font-weight:600}
+  .kpi2{background:#fff;border:1px solid var(--line);border-top:3px solid var(--blue);border-radius:12px;padding:16px 18px}
+  .kpi2 .t{font-size:12px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:6px}
+  .card h2{display:flex;align-items:center;gap:8px}
   .kpi2 .n{font-size:28px;font-weight:700;color:var(--navy);margin:6px 0 4px;line-height:1.1}
   .kpi2 .s{font-size:11.5px;color:var(--muted)}
   .sbar{display:flex;height:18px;border-radius:4px;overflow:hidden;background:#eef1f5}
@@ -673,7 +702,7 @@ function ensureRole(sec, name){
     DB.roles.push({id:uid('r'), section:sec, name});
 }
 
-let current=null, view='dashboard', taskFilter='All', authMode='signin', authMsg=null;
+let current=null, view='dashboard', taskFilter='All', taskFilterDept='', taskFilterRole='', authMode='signin', authMsg=null;
 let dateBasis='due', dateFrom=dateStr(0), dateTo=dateStr(0);
 /* Dashboard date range — defaults to today. */
 let dashFrom=dateStr(0), dashTo=dateStr(0);
@@ -909,7 +938,7 @@ function shell(){
   <div class="nav">${nav}</div>
   <div class="wrap">${body}</div>`;
 }
-function go(v){ view=v; if(v==='notify') myNotifs().forEach(n=>n.read=true); taskFilter='All'; save(); render(); }
+function go(v){ view=v; if(v==='notify') myNotifs().forEach(n=>n.read=true); taskFilter='All'; taskFilterDept=''; taskFilterRole=''; save(); render(); }
 
 /* --------------------- super admin: full dashboard ---------------------- */
 function superDashboardView(){
@@ -1010,7 +1039,7 @@ function superDashboardView(){
   });
   const roleRowsAgg=Object.keys(roleAgg).map(k=>{
     const a=roleAgg[k];
-    a.members=DB.users.filter(u=>u.status==='approved'&&u.type==='member'&&u.section===a.s&&u.role===a.role).length;
+    a.members=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===a.s&&u.role===a.role).length;
     a.cap=a.members*capRange;
     a.load=a.cap?Math.round(a.mins*100/a.cap):0;
     a.perf=a.assigned?Math.round(a.completed*100/a.assigned):0;
@@ -1028,6 +1057,40 @@ function superDashboardView(){
     </div>`;
   }).join('')||'<div class="empty">No tasks in this period.</div>';
 
+  /* department workload + totals */
+  const deptAgg={};
+  pts.forEach(t=>{ const a=deptAgg[t.section]||(deptAgg[t.section]={section:t.section,mins:0,assigned:0}); a.assigned++; a.mins+=(+t.estMin||0); });
+  const deptRowsAgg=Object.keys(deptAgg).map(k=>{
+    const a=deptAgg[k];
+    a.people=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===a.section).length;
+    a.cap=a.people*capRange;
+    a.load=a.cap?Math.round(a.mins*100/a.cap):0;
+    return a;
+  }).sort((a,b)=>b.load-a.load);
+  const deptLoadRows=deptRowsAgg.slice(0,6).map(a=>{
+    const col=a.load>100?'#C0392B':(a.load<80?'#E67E22':'#2E86C1');
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div><b>${esc(a.section)}</b><div class="small muted">${a.people} ${a.people===1?'person':'people'} | ${a.cap.toLocaleString()} min capacity</div></div>
+        <div style="font-weight:700;color:${col}">${a.load}%</div></div>
+      <div class="bar" style="margin-top:5px"><i style="width:${Math.min(a.load,100)}%;background:${col}"></i></div>
+    </div>`;
+  }).join('')||'<div class="empty">No tasks in this period.</div>';
+  const totalDepts=SECTIONS.length;
+  const totalRoles=new Set(DB.roles.map(r=>r.name)).size;
+  const periodAll=DB.tasks.filter(t=>t.dueDate && t.dueDate>=pr.from && t.dueDate<=pr.to);
+  const activeSecs=new Set(periodAll.map(t=>t.section).filter(Boolean));
+  const NO_TASK_DEPTS=['Sustainability','Central Team','Finance'];   /* not expected to assign tasks */
+  const missingDepts=SECTIONS.filter(s=>NO_TASK_DEPTS.indexOf(s)<0 && !activeSecs.has(s));
+  /* "Regularly assigning" = share of the department's roles that actually got tasks. */
+  const roleCov=SECTIONS.filter(s=>NO_TASK_DEPTS.indexOf(s)<0).map(s=>{
+    const rows=periodAll.filter(t=>t.section===s);
+    const avail=new Set(DB.roles.filter(r=>r.section===s).map(r=>r.name)).size;
+    const used=new Set(rows.map(t=>t.role).filter(Boolean)).size;
+    return {section:s, avail:avail, used:used, tasks:rows.length, cov:avail?Math.round(used*100/avail):0};
+  }).filter(x=>x.tasks>0).sort((a,b)=>b.cov-a.cov || b.tasks-a.tasks);
+  const topDepts=roleCov.slice(0,3);
+
   const signalBadge=s=> s==='Healthy'?badge('Healthy','b-green'):(s==='Redistribute load'?badge('Redistribute load','b-red'):badge('Available capacity','b-orange'));
   const rolePerfRows=roleRowsAgg.map(a=>`<tr>
       <td><b>${esc(a.role)}</b><div class="small muted">${esc(a.s)}</div></td>
@@ -1044,11 +1107,11 @@ function superDashboardView(){
     </svg>`;
   };
 
-  return `
+  return `<div class="sdash">
   <div class="card" style="padding:16px 20px">
     <div class="row" style="justify-content:space-between;align-items:center">
       <div>
-        <h2 style="margin:0 0 4px">Daily operations overview</h2>
+        <h2 style="margin:0 0 4px">📊 Daily operations overview</h2>
         <div class="small muted">${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})} &nbsp;|&nbsp; ${esc(deptLabel)} &nbsp;|&nbsp; ${employees} employees</div>
       </div>
       <div class="row" style="align-items:center;gap:14px">
@@ -1067,21 +1130,60 @@ function superDashboardView(){
     </div>
   </div>
 
-  <div class="grid g3" style="margin-bottom:16px">
-    <div class="kpi2"><div class="t">Assigned workload</div>
-      <div class="n" style="color:${loadColor(loadPct)}">${loadPct}%</div>
-      <div class="s">Balanced target: 80–95%${loadPct>100?' · overloaded':(loadPct<80?' · underloaded':'')}</div></div>
-    <div class="kpi2"><div class="t">Task completion</div>
-      <div class="n" style="color:#2E86C1">${completionPct}%</div>
-      <div class="s">${doneP} of ${totalP} tasks done</div></div>
-    <div class="kpi2"><div class="t">On-time completion</div>
-      <div class="n" style="color:${onTimePct>=80?'#1E8449':'#E67E22'}">${onTimePct}%</div>
-      <div class="s">${lateP} task(s) completed late</div></div>
+  <div class="kpirow">
+    <div class="grid g3" style="flex:1">
+      <div class="kpi2"><div class="t">📋 Total tasks</div>
+        <div class="n" style="color:#1F4E78">${totalP}</div>
+        <div class="s">${periodLabel}</div></div>
+      <div class="kpi2"><div class="t">⚖️ Assigned workload</div>
+        <div class="n" style="color:${loadColor(loadPct)}">${loadPct}%</div>
+        <div class="s">Balanced target: 80–95%${loadPct>100?' · overloaded':(loadPct<80?' · underloaded':'')}</div></div>
+      <div class="kpi2"><div class="t">✅ Task completion</div>
+        <div class="n" style="color:#2E86C1">${completionPct}%</div>
+        <div class="s">${doneP} of ${totalP} tasks done</div></div>
+      <div class="kpi2"><div class="t">⏱️ On-time completion</div>
+        <div class="n" style="color:${onTimePct>=80?'#1E8449':'#E67E22'}">${onTimePct}%</div>
+        <div class="s">${lateP} task(s) completed late</div></div>
+      <div class="kpi2"><div class="t">🏢 Total departments</div>
+        <div class="n" style="color:#1F4E78">${totalDepts}</div>
+        <div class="s">Departments</div></div>
+      <div class="kpi2"><div class="t">👥 Total roles</div>
+        <div class="n" style="color:#1F4E78">${totalRoles}</div>
+        <div class="s">Distinct designations</div></div>
+    </div>
+    <div class="rightcol">
+      <div class="card misscard">
+        <div>
+          <h2 style="font-size:13px">⚠️ Departments without tasks</h2>
+          <div class="small muted" style="margin:0 0 5px">Not assigned in ${periodLabel}</div>
+          ${missingDepts.length
+            ? `<div>${missingDepts.map(s=>badge(s,'b-red')).join(' ')}</div>`
+            : '<div class="ok small">All departments assigned tasks.</div>'}
+        </div>
+        <div>
+          <div style="border-top:1px solid var(--line);margin:9px 0"></div>
+          <h2 style="font-size:13px">🏅 Top 3 departments assigning</h2>
+          <div class="small muted" style="margin:0 0 3px">Roles used ÷ available · ${periodLabel}</div>
+        ${topDepts.length?`<div style="display:flex;gap:6px">${topDepts.map((d,i)=>`<div style="flex:1;text-align:center;background:#f7fafd;border-radius:6px;padding:5px 4px">
+            <div style="font-weight:700;color:#1F4E78;font-size:13px">${d.cov}%</div>
+            <div class="small muted" style="font-size:10px;line-height:1.25"><b>${i+1}. ${esc(d.section)}</b><br>${d.used}/${d.avail} roles</div>
+          </div>`).join('')}</div>`:'<div class="ok small">No assignments in this period.</div>'}
+        </div>
+      </div>
+    </div>
   </div>
 
-  <div class="grid">
-    <div class="card"><h2>Role-wise workload</h2>
-      <p class="desc">Load = assigned minutes ÷ capacity (${perDay} min × ${pDays} day(s) × members).</p>
+  <div class="grid g2">
+    <div class="card"><h2>🏢 Workload by Department</h2>
+      <p class="desc">Load = assigned minutes ÷ capacity (${perDay} min × ${pDays} day(s) × people).</p>
+      ${deptLoadRows}
+      <div class="small muted" style="margin-top:6px">
+        <span style="color:#E67E22">●</span> Below 80%: underloaded &nbsp;&nbsp;
+        <span style="color:#2E86C1">●</span> 80–100%: balanced &nbsp;&nbsp;
+        <span style="color:#C0392B">●</span> Above 100%: overloaded</div>
+    </div>
+    <div class="card"><h2>🧩 Workload by Role</h2>
+      <p class="desc">Load = assigned minutes ÷ capacity (${perDay} min × ${pDays} day(s) × people).</p>
       ${roleLoadRows}
       <div class="small muted" style="margin-top:6px">
         <span style="color:#E67E22">●</span> Below 80%: underloaded &nbsp;&nbsp;
@@ -1090,7 +1192,7 @@ function superDashboardView(){
     </div>
   </div>
 
-  <div class="card"><h2>Role performance and action signals</h2>
+  <div class="card"><h2>🎯 Role performance and action signals</h2>
     <table><tr><th>Role</th><th>Assigned</th><th>Completed</th><th>On time</th><th>Load</th><th>Performance</th><th>Signal</th></tr>
     ${rolePerfRows}</table>
     <p class="hint">Use planned minutes — not task count — for workload decisions because task durations differ.</p>
@@ -1103,31 +1205,32 @@ function superDashboardView(){
       Super Admin view — ${esc(deptLabel)}</div>
   </div>
 
-  <div class="card"><h2>${esc(deptLabel)} — Key Data</h2>
+  <div class="card"><h2>📊 ${esc(deptLabel)} — Key Data</h2>
     <p class="desc">Summary of every department. Use the buttons to open that department directly.</p>
     <table><tr><th>Department</th><th>Supervisors</th><th>Members</th><th>Pending</th><th>Tasks</th><th>Done</th>
       <th>Completion</th><th>Overdue</th><th>Est / Actual min</th><th>Actions</th></tr>
       ${summaryRows}</table>
   </div>
 
-  <div class="card"><h2>Department-wise Status Mix</h2>
+  <div class="card"><h2>📈 Department-wise Status Mix</h2>
     <p class="desc">Each bar shows how a department's tasks are distributed across statuses.</p>
     <div style="margin-bottom:10px">${legend}</div>
     <table>${stacked}</table>
   </div>
 
-  <div class="card"><h2>Department × Status Detail</h2>
+  <div class="card"><h2>🧮 Department × Status Detail</h2>
     <table><tr><th>Department</th>${STATUSES.map(k=>`<th>${esc(k)}</th>`).join('')}<th>Total</th><th>Est / Actual</th></tr>
       ${detailRows}</table>
   </div>
 
   <div class="grid g2">
-    <div class="card"><h2>Attention — Overdue Tasks</h2>
+    <div class="card"><h2>🚨 Attention — Overdue Tasks</h2>
       <table><tr><th>Due</th><th>Task</th><th>Department</th><th>Assignee</th><th>Status</th><th></th></tr>
       ${overList||'<tr><td colspan=6 class="empty">No overdue tasks.</td></tr>'}</table></div>
-    <div class="card"><h2>Recent Activity (${esc(deptLabel)})</h2>
+    <div class="card"><h2>🕒 Recent Activity (${esc(deptLabel)})</h2>
       <table><tr><th>Task</th><th>Department</th><th>Assignee</th><th>Status</th><th>Updated</th><th></th></tr>
       ${recent||'<tr><td colspan=6 class="empty">No activity yet.</td></tr>'}</table></div>
+  </div>
   </div>`;
 }
 
@@ -1308,11 +1411,30 @@ function taskListHtml(list){
 }
 function tasksView(){
   const ts=visibleTasks(current);
+  const showFilters=current.type!=='member';
+  const depts=[...new Set(ts.map(t=>t.section).filter(Boolean))].sort();
+  const roleSrc=taskFilterDept?ts.filter(t=>t.section===taskFilterDept):ts;
+  const roles=[...new Set(roleSrc.map(t=>t.role).filter(Boolean))].sort();
+  const scoped=ts.filter(t=>(!taskFilterDept||t.section===taskFilterDept)&&(!taskFilterRole||t.role===taskFilterRole));
+  const filterBar=showFilters?`<div class="row" style="margin-bottom:12px">
+      <div class="field" style="min-width:180px;margin:0"><label>Department</label>
+        <select onchange="taskFilterDept=this.value;taskFilterRole='';render()">
+          <option value="">All departments</option>
+          ${depts.map(d=>`<option ${taskFilterDept===d?'selected':''}>${esc(d)}</option>`).join('')}
+        </select></div>
+      <div class="field" style="min-width:180px;margin:0"><label>Role</label>
+        <select onchange="taskFilterRole=this.value;render()">
+          <option value="">All roles</option>
+          ${roles.map(r=>`<option ${taskFilterRole===r?'selected':''}>${esc(r)}</option>`).join('')}
+        </select></div>
+      ${(taskFilterDept||taskFilterRole)?`<button class="btn ghost sm" onclick="taskFilterDept='';taskFilterRole='';render()">Clear filters</button>`:''}
+    </div>`:'';
   return `<div class="card"><h2>Tasks ${current.type==='member'?'assigned to me':(isSuper()?'— all departments':'')}</h2>
     <p class="desc">Tasks are bundled by due date. Click a date to see that day's tasks, then click a task to update it.${current.type==='member'?'':' Supervisors can verify or reopen inline.'}</p>
-    <div style="margin-bottom:12px">${statusChips(ts)}</div>
+    ${filterBar}
+    <div style="margin-bottom:12px">${statusChips(scoped)}</div>
     ${bulkBar()}
-    ${taskListHtml(filteredTasks(ts))||'<div class="empty">No tasks found.</div>'}</div>`;
+    ${taskListHtml(filteredTasks(scoped))||'<div class="empty">No tasks found.</div>'}</div>`;
 }
 function myTasksView(){
   const ts=DB.tasks.filter(t=>isMyTask(t,current));
