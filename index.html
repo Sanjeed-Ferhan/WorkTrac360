@@ -1033,13 +1033,15 @@ function superDashboardView(){
   const roleAgg={};
   pts.forEach(t=>{
     const k=t.section+'\u0001'+t.role;
-    const a=roleAgg[k]||(roleAgg[k]={s:t.section,role:t.role,assigned:0,completed:0,onTime:0,mins:0});
-    a.assigned++; a.mins+=(+t.estMin||0);
+    const a=roleAgg[k]||(roleAgg[k]={s:t.section,role:t.role,assigned:0,completed:0,onTime:0,mins:0,who:new Set()});
+    a.assigned++; a.mins+=(+t.estMin||0); if(t.assigneeId) a.who.add(t.assigneeId);
     if(t.status==='Done'||t.status==='Verified'){ a.completed++; if(t.dueDate && dstr(t.updatedAt)<=t.dueDate) a.onTime++; }
   });
   const roleRowsAgg=Object.keys(roleAgg).map(k=>{
     const a=roleAgg[k];
-    a.members=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===a.s&&u.role===a.role).length;
+    const ppl=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===a.s&&u.role===a.role);
+    a.members=ppl.length;
+    a.assignedPeople=ppl.filter(u=>a.who.has(u.id)).length;   /* only role holders who received tasks */
     a.cap=a.members*capRange;
     a.load=a.cap?Math.round(a.mins*100/a.cap):0;
     a.perf=a.assigned?Math.round(a.completed*100/a.assigned):0;
@@ -1051,7 +1053,7 @@ function superDashboardView(){
     const col=a.load>100?'#C0392B':(a.load<80?'#E67E22':'#2E86C1');
     return `<div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div><b>${esc(a.role)}</b><div class="small muted">${a.members} ${a.members===1?'person':'people'} | ${a.cap.toLocaleString()} min capacity</div></div>
+        <div><b>${esc(a.role)}</b><div class="small muted">${a.members} people · <b style="color:#40515f">${a.assignedPeople} got tasks</b> · ${a.cap.toLocaleString()} min cap</div></div>
         <div style="font-weight:700;color:${col}">${a.load}%</div></div>
       <div class="bar" style="margin-top:5px"><i style="width:${Math.min(a.load,100)}%;background:${col}"></i></div>
     </div>`;
@@ -1059,10 +1061,11 @@ function superDashboardView(){
 
   /* department workload + totals */
   const deptAgg={};
-  pts.forEach(t=>{ const a=deptAgg[t.section]||(deptAgg[t.section]={section:t.section,mins:0,assigned:0}); a.assigned++; a.mins+=(+t.estMin||0); });
+  pts.forEach(t=>{ const a=deptAgg[t.section]||(deptAgg[t.section]={section:t.section,mins:0,assigned:0,who:new Set()}); a.assigned++; a.mins+=(+t.estMin||0); if(t.assigneeId) a.who.add(t.assigneeId); });
   const deptRowsAgg=Object.keys(deptAgg).map(k=>{
     const a=deptAgg[k];
     a.people=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===a.section).length;
+    a.assignedPeople=a.who.size;
     a.cap=a.people*capRange;
     a.load=a.cap?Math.round(a.mins*100/a.cap):0;
     return a;
@@ -1071,7 +1074,7 @@ function superDashboardView(){
     const col=a.load>100?'#C0392B':(a.load<80?'#E67E22':'#2E86C1');
     return `<div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <div><b>${esc(a.section)}</b><div class="small muted">${a.people} ${a.people===1?'person':'people'} | ${a.cap.toLocaleString()} min capacity</div></div>
+        <div><b>${esc(a.section)}</b><div class="small muted">${a.people} people · <b style="color:#40515f">${a.assignedPeople} got tasks</b> · ${a.cap.toLocaleString()} min cap</div></div>
         <div style="font-weight:700;color:${col}">${a.load}%</div></div>
       <div class="bar" style="margin-top:5px"><i style="width:${Math.min(a.load,100)}%;background:${col}"></i></div>
     </div>`;
@@ -1461,19 +1464,36 @@ function assignView(){
   const scope = isSuper() ? (window.__assignScope || 'dept') : 'dept';
   const roles=memberRolesOf(sec);
   const rNorm = window.__assignRole ? String(window.__assignRole).trim().toLowerCase() : '';
-  const roleSel = rNorm ? (roles.find(r=>String(r).trim().toLowerCase()===rNorm) || roles[0]) : (roles[0]||'');
-  if(roleSel) window.__assignRole=roleSel;   /* register the default role */
+  const roleSel = rNorm ? (roles.find(r=>String(r).trim().toLowerCase()===rNorm) || '') : '';
+  window.__assignRole=roleSel||'';   /* no default role — the user must pick one */
   let members;
   if(scope==='all'){
     members=DB.users.filter(u=>u.type==='member' && u.status==='approved')
       .sort((a,b)=>((a.section+a.name).localeCompare(b.section+b.name)));
   }else{
-    const rr=rNorm||'';
-    members=DB.users.filter(u=>u.type==='member' && u.section===sec && (!rr||String(u.role||'').trim().toLowerCase()===rr) && u.status==='approved');
+    members = rNorm ? DB.users.filter(u=>u.type==='member' && u.section===sec && String(u.role||'').trim().toLowerCase()===rNorm && u.status==='approved') : [];
   }
-  const dict=DB.dict.filter(d=>d.section===sec && (!roleSel||String(d.role||'').trim().toLowerCase()===rNorm));
+  const dict=(scope==='all'||!roleSel)?[]:DB.dict.filter(d=>d.section===sec && String(d.role||'').trim().toLowerCase()===rNorm);
+  /* supervisor: per-role head-count vs how many were assigned a task today */
+  const _today=dateStr(0);
+  const _todayTasks=DB.tasks.filter(t=>t.createdAt && dstr(t.createdAt)===_today && t.section===sec);
+  const roleStat=roles.map(r=>{
+    const rl=String(r).trim().toLowerCase();
+    const people=DB.users.filter(u=>u.type==='member'&&u.status==='approved'&&u.section===sec&&String(u.role||'').trim().toLowerCase()===rl).length;
+    const assigned=new Set(_todayTasks.filter(t=>String(t.role||'').trim().toLowerCase()===rl).map(t=>t.assigneeId).filter(Boolean)).size;
+    return {role:r, people:people, assigned:assigned};
+  });
+  const _roleHasMember=(roleSel && rNorm)?DB.users.some(u=>u.type==='member'&&u.status==='approved'&&u.section===sec&&String(u.role||'').trim().toLowerCase()===rNorm):false;
+  const _roleHasSuper =(roleSel && rNorm)?DB.users.some(u=>u.type==='supervisor'&&u.status==='approved'&&u.section===sec&&String(u.role||'').trim().toLowerCase()===rNorm):false;
+  const supervisorHint=(roleSel && !_roleHasMember && _roleHasSuper)?`<div class="note" style="margin:10px 0">This role is held by a <b>supervisor</b>. To assign a task to this person, use the <span class="link" onclick="go('cross')">Cross Functional</span> tab.</div>`:'';
+  const notAssignedToday=roleStat.filter(x=>x.assigned===0).map(x=>x.role);
+  const notAssignedBlock=(current.type==='supervisor' && scope!=='all')?`
+    <div style="min-width:230px;max-width:330px;text-align:right">
+      <div class="small muted" style="margin-bottom:4px">Tasks not assigned today</div>
+      ${notAssignedToday.length?notAssignedToday.map(rr=>badge(rr,'b-red')).join(' '):'<span class="ok small">All roles have tasks today</span>'}
+    </div>`:'';
   if(!assignRows.length) assignRows=[{title:'',estMin:30,priority:'Medium',frequency:'One-time'}];
-  const roleOptions=roles.map(r=>`<option ${r===roleSel?'selected':''}>${esc(r)}</option>`).join('');
+  const roleOptions=`<option value="" ${!roleSel?'selected':''}>— Select role —</option>`+roles.map(r=>`<option ${r===roleSel?'selected':''}>${esc(r)}</option>`).join('');
   const memberPicker=memberPickerHtml('assignMember','__assignSel',members,
     scope==='all'
       ? { groupOf:m=>m.section, labelOf:m=>`${m.name} · ${m.role} (${m.enroll}) · ${m.type}` }
@@ -1492,8 +1512,14 @@ function assignView(){
       <input type="date" value="${r.dueDate||dateStr(0)}" oninput="assignRows[${i}].dueDate=this.value">
       <button class="btn sm red" onclick="removeRow(${i})" title="Remove">×</button>
     </div>`).join('');
-  return `<div class="card"><h2>Assign Task</h2>
-    <p class="desc">${scope==='all'?'<b>Any employee mode</b> — pick anyone across all departments and roles. Each task is filed under that employee\'s own department and role.':'Pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.'}</p>
+  return `<div class="card">
+    <div class="row" style="justify-content:space-between;align-items:flex-start;gap:14px">
+      <div style="flex:1">
+        <h2>Assign Task</h2>
+        <p class="desc" style="margin-bottom:0">${scope==='all'?'<b>Any employee mode</b> — pick anyone across all departments and roles. Each task is filed under that employee\'s own department and role.':'Pick a role and member(s), then add one or more tasks. Each task carries its own estimated time in minutes.'}</p>
+      </div>
+      ${notAssignedBlock}
+    </div>
     ${isSuper()?`<div class="row" style="margin-bottom:6px">
       <label class="small" style="display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" ${scope==='all'?'checked':''} onchange="window.__assignScope=this.checked?'all':'dept';assignRows=[];window.__assignSel=[];window.__assignSel_q='';render()">
@@ -1504,7 +1530,7 @@ function assignView(){
         <select onchange="window.__assignSec=this.value;window.__assignRole='';assignRows=[];window.__assignSel=[];window.__assignSel_q='';render()">
           ${SECTIONS.map(s=>`<option ${s===sec?'selected':''}>${esc(s)}</option>`).join('')}</select></div>`:''}
       ${scope!=='all'?`<div class="field" style="min-width:190px"><label>Role</label>
-        <select onchange="window.__assignRole=this.value;window.__assignSel=[];window.__assignSel_q='';render()">${roleOptions||'<option value="">— add people/roles first —</option>'}</select></div>`:''}
+        <select onchange="window.__assignRole=this.value;window.__assignSel=[];window.__assignSel_q='';render()">${roleOptions}</select></div>`:''}
       <div class="field" style="min-width:250px"><label>Assign to member(s)</label>
         ${pickerTools('assignMember','__assignSel')}
         <div id="assignMember" class="picker">${memberPicker}</div>
@@ -1512,7 +1538,8 @@ function assignView(){
       <div class="field" style="min-width:150px"><label>Shift</label>
         <select id="assignShift">${SHIFTS.map(s=>`<option>${s}</option>`).join('')}</select></div>
     </div>
-    ${scope!=='all'?`<h3>Load from dictionary — ${esc(roleSel||'this role')}</h3>
+    ${supervisorHint}
+    ${(scope!=='all'&&roleSel)?`<h3>Load from dictionary — ${esc(roleSel)}</h3>
     <div class="row">
       <div class="field" style="min-width:190px"><label>Frequency</label>
         <select onchange="window.__dictFreq=this.value;render()">
@@ -1599,7 +1626,8 @@ function loadFromDict(){
   const sec = isSuper() ? (window.__assignSec || SECTIONS[0]) : current.section;
   const roles=memberRolesOf(sec);
   const aNorm=window.__assignRole?String(window.__assignRole).trim().toLowerCase():'';
-  const roleSel=aNorm?(roles.find(r=>String(r).trim().toLowerCase()===aNorm)||roles[0]):(roles[0]||'');
+  const roleSel=aNorm?(roles.find(r=>String(r).trim().toLowerCase()===aNorm)||''):'';
+  if(!roleSel){ toast('Select a role first.'); return; }
   const rr=roleSel?String(roleSel).trim().toLowerCase():'';
   const f = window.__dictFreq || 'All';
   const list = DB.dict.filter(d=>d.section===sec && (!rr||String(d.role||'').trim().toLowerCase()===rr) && (f==='All'||d.frequency===f));
