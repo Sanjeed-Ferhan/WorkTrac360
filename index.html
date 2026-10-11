@@ -84,6 +84,9 @@
   .sdash .kpi2 .s{font-size:10px}
   .sdash .rightcol{display:flex;flex-direction:column;gap:10px;height:100%}
   @media(max-width:820px){.sdash .kpirow{grid-template-columns:1fr}}
+  .supkpi{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:stretch;margin-bottom:16px}
+  .supkpi > .grid{grid-auto-rows:1fr}
+  @media(max-width:820px){.supkpi{grid-template-columns:1fr}}
   .grid{display:grid;gap:14px}
   .g4{grid-template-columns:repeat(4,1fr)}
   .g3{grid-template-columns:repeat(3,1fr)}
@@ -1241,6 +1244,7 @@ function superDashboardView(){
 function dashboardView(){
   if(isSuper()) return superDashboardView();
   const ts=visibleTasks(current);
+  const todayCnt=ts.filter(t=>t.createdAt && dstr(t.createdAt)===dateStr(0)).length;
   const byStatus={}; STATUSES.forEach(s=>byStatus[s]=0); ts.forEach(t=>byStatus[t.status]=(byStatus[t.status]||0)+1);
   const est=ts.reduce((a,t)=>a+(+t.estMin||0),0), act=ts.reduce((a,t)=>a+(+t.actualMin||0),0);
   const overdue=ts.filter(isOverdue).length;
@@ -1266,23 +1270,49 @@ function dashboardView(){
     deptBlock=`<div class="card"><h2>Tasks by Department</h2><p class="desc">All departments (Super Admin view).</p>
       <table><tr><th>Department</th><th>Tasks</th></tr>${rows||'<tr><td colspan=2 class="empty">—</td></tr>'}</table></div>`;
   }
-  return `
-  <div class="grid g4" style="margin-bottom:16px">
-    <div class="kpi"><div class="v">${ts.length}</div><div class="l">Total Tasks</div></div>
-    <div class="kpi"><div class="v" style="color:#17A589">${completion}%</div><div class="l">Completion</div></div>
-    <div class="kpi"><div class="v" style="color:#C0392B">${overdue}</div><div class="l">Overdue</div></div>
-    <div class="kpi"><div class="v">${est} / ${act}</div><div class="l">Est. / Actual min</div></div>
-  </div>
-  <div class="grid g2">
-    <div class="card"><h2>Task Status</h2><p class="desc">Distribution of tasks by current status.</p>${bars}</div>
-    <div class="card"><h2>Time Adherence</h2><p class="desc">Estimated vs actual time recorded.</p>
+  let supBlock='', supNotAssigned=null;
+  if(current.type==='supervisor'){
+    const sec=current.section, today=dateStr(0);
+    const todayTasks=DB.tasks.filter(t=>t.createdAt && dstr(t.createdAt)===today && t.section===sec);
+    const secRoles=memberRolesOf(sec);
+    const roleRows=secRoles.map(r=>{
+      const rl=String(r).trim().toLowerCase();
+      const people=DB.users.filter(u=>u.status==='approved'&&(u.type==='member'||u.type==='supervisor')&&u.section===sec&&String(u.role||'').trim().toLowerCase()===rl).length;
+      const rt=todayTasks.filter(t=>String(t.role||'').trim().toLowerCase()===rl);
+      const mins=rt.reduce((a,t)=>a+(+t.estMin||0),0);
+      const assigned=new Set(rt.map(t=>t.assigneeId).filter(Boolean)).size;
+      const cap=people*480;
+      return {role:r, people:people, assigned:assigned, mins:mins, cap:cap, load:cap?Math.round(mins*100/cap):0};
+    }).filter(x=>x.people>0).sort((a,b)=>b.load-a.load);
+    const bars=roleRows.slice(0,5).map(a=>{ const col=a.load>100?'#C0392B':(a.load<80?'#E67E22':'#2E86C1');
+      return `<div style="margin-bottom:6px;font-size:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(a.role)}</b> <span class="muted" style="font-size:10.5px">${a.people} people · ${a.assigned} got task · ${a.mins} min</span></span><b style="color:${col};white-space:nowrap">${a.load}%</b></div><div class="bar" style="height:9px;margin-top:3px"><i style="width:${Math.min(a.load,100)}%;background:${col}"></i></div></div>`;
+    }).join('')||'<div class="empty">No roles.</div>';
+    const notAssigned=secRoles.filter(r=>!todayTasks.some(t=>String(t.role||'').trim().toLowerCase()===String(r).trim().toLowerCase()));
+    supNotAssigned=notAssigned;
+    supBlock=`<div class="card"><h2>🧩 Workload by Role — today</h2><p class="desc">Load = today's assigned minutes ÷ (people × 480).</p>${bars}</div>`;
+  }
+  const kpiCards=`<div class="kpi"><div class="v">${ts.length}</div><div class="l">Total Tasks</div><div class="small muted" style="margin-top:2px">${todayCnt} today</div></div>
+      <div class="kpi"><div class="v" style="color:#17A589">${completion}%</div><div class="l">Completion</div></div>
+      <div class="kpi"><div class="v" style="color:#C0392B">${overdue}</div><div class="l">Overdue</div></div>
+      <div class="kpi"><div class="v">${est} / ${act}</div><div class="l">Est. / Actual min</div></div>`;
+  const taskStatusCard=`<div class="card"><h2>Task Status</h2><p class="desc">Distribution of tasks by current status.</p>${bars}</div>`;
+  const timeCard=`<div class="card"><h2>Time Adherence</h2><p class="desc">Estimated vs actual time recorded.</p>
       <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Estimated</span><span><b>${est} min</b></span></div>
       <div class="bar" style="margin-bottom:12px"><i style="width:${Math.max(est,act)?Math.round(est*100/Math.max(est,act)):0}%;background:#2E86C1"></i></div>
       <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Actual</span><span><b>${act} min</b></span></div>
       <div class="bar"><i style="width:${Math.max(est,act)?Math.round(act*100/Math.max(est,act)):0}%;background:${act>est?'#C0392B':'#17A589'}"></i></div>
       <p class="small muted" style="margin-top:12px">${est?`Adherence <b style="color:${act>est?'#C0392B':'#17A589'}">${Math.round(est*100/Math.max(act,1))}%</b> — ${act>est?'actual exceeded estimate':'within estimate'}.`:'No time recorded yet.'}</p>
+    </div>`;
+  return `
+  ${supNotAssigned?`<div class="supkpi">
+    <div class="grid g4" style="margin-bottom:0">${kpiCards}</div>
+    <div class="card" style="margin-bottom:0;height:100%">
+      <h2>⚠️ Roles not assigned today</h2>
+      <p class="desc">Roles in ${esc(current.section)} with no task created today.</p>
+      ${supNotAssigned.length?supNotAssigned.map(r=>badge(r,'b-red')).join(' '):'<div class="ok">All roles have tasks today.</div>'}
     </div>
-  </div>
+  </div>`:`<div class="grid g4" style="margin-bottom:16px">${kpiCards}</div>`}
+  ${supBlock?`<div class="grid g3">${supBlock}${taskStatusCard}${timeCard}</div>`:`<div class="grid g2">${taskStatusCard}${timeCard}</div>`}
   ${deptBlock}
   <div class="card"><h2>Recent Activity</h2>
     <table><tr><th>Task</th>${isSuper()?'<th>Department</th>':''}<th>Assignee</th><th>Status</th><th>Updated</th><th></th></tr>${recent||`<tr><td colspan=${isSuper()?6:5} class="empty">No activity yet.</td></tr>`}</table></div>`;
